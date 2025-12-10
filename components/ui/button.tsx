@@ -2,10 +2,11 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
   icon?: React.ElementType;
   isLoading?: boolean;
+  children?: React.ReactNode;
 }
 
 export const Button = ({ 

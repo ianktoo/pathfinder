@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { X, MessageSquare, Star, Share2, Map, Navigation, Copy, Clock, Calendar, Bookmark, CheckCircle, Circle, PenTool, Send, ThumbsUp, ThumbsDown, MapPin, Globe } from 'lucide-react';
+import { X, MessageSquare, Star, Share2, Map, Navigation, Copy, Clock, Calendar, Bookmark, CheckCircle, Circle, PenTool, Send, ThumbsUp, ThumbsDown, MapPin, Globe, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Itinerary, ItineraryItem, UserReview } from '../../types';
@@ -7,17 +8,23 @@ import { ModelRegistry } from '../../services/ai';
 import { BackendService } from '../../services/storage';
 import { Type } from "@google/genai";
 
-const StarRating = ({ rating, interactive = false, onRate }: { rating: number, interactive?: boolean, onRate?: (r: number) => void }) => (
-  <div className="flex items-center gap-0.5">
+const StarRating = ({ rating, interactive = false, onRate, size = "w-4 h-4" }: { rating: number, interactive?: boolean, onRate?: (r: number) => void, size?: string }) => (
+  <div className="flex items-center gap-1">
     {[1, 2, 3, 4, 5].map((star) => (
       <button 
         key={star} 
         disabled={!interactive}
-        onClick={() => interactive && onRate && onRate(star)}
-        className={`${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : 'cursor-default'}`}
+        type="button"
+        onClick={(e) => {
+            if (interactive && onRate) {
+                e.stopPropagation();
+                onRate(star);
+            }
+        }}
+        className={`${interactive ? 'cursor-pointer hover:scale-110 transition-transform p-1' : 'cursor-default'}`}
       >
         <Star 
-          className={`w-3.5 h-3.5 ${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-stone-300 dark:text-neutral-600'}`} 
+          className={`${size} ${star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-stone-300 dark:text-neutral-600'}`} 
         />
       </button>
     ))}
@@ -40,18 +47,20 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
   const [isChatMode, setIsChatMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Expanded Item State for Accordion
+  const [expandedItem, setExpandedItem] = useState<number | null>(null);
+
   // Engagement State
   const [voteCount, setVoteCount] = useState(itinerary.likes || 0);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
 
-  // Local state for review forms [itemIndex]: boolean
-  const [activeReviewForms, setActiveReviewForms] = useState<Record<number, boolean>>({});
+  // Review Modal State (Replaces inline forms)
+  const [reviewingItemIndex, setReviewingItemIndex] = useState<number | null>(null);
   const [reviewInputs, setReviewInputs] = useState<Record<number, { text: string, rating: number, shareYelp: boolean }>>({});
 
   // Persist changes immediately when check-ins or bookmarks happen
   const persistChanges = (updated: Itinerary) => {
     setCurrentItinerary(updated);
-    // If we are in "view" mode (not creating), save to storage immediately
     if (!allowEdit) {
       BackendService.saveItinerary(updated);
     }
@@ -82,6 +91,10 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
     persistChanges(updated);
   };
 
+  const toggleExpand = (idx: number) => {
+      setExpandedItem(expandedItem === idx ? null : idx);
+  };
+
   const handleVote = (type: 'up' | 'down') => {
       if (userVote === type) {
           setUserVote(null);
@@ -90,18 +103,24 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
           setUserVote(type);
           setVoteCount((itinerary.likes || 0) + (type === 'up' ? 1 : -1));
       }
-      // In a real app, this would verify with backend
   };
 
-  const toggleReviewForm = (idx: number) => {
-    setActiveReviewForms(prev => ({ ...prev, [idx]: !prev[idx] }));
-    if (!reviewInputs[idx]) {
-        setReviewInputs(prev => ({ ...prev, [idx]: { text: '', rating: 5, shareYelp: false } }));
-    }
+  const openReviewModal = (idx: number) => {
+      setReviewingItemIndex(idx);
+      if (!reviewInputs[idx]) {
+          setReviewInputs(prev => ({ ...prev, [idx]: { text: '', rating: 5, shareYelp: false } }));
+      }
   };
 
-  const submitReview = (idx: number) => {
+  const closeReviewModal = () => {
+      setReviewingItemIndex(null);
+  };
+
+  const submitReview = () => {
+    if (reviewingItemIndex === null) return;
+    const idx = reviewingItemIndex;
     const input = reviewInputs[idx];
+    
     if (!input || !input.text) return;
 
     const newReview: UserReview = {
@@ -116,7 +135,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
     const updated = { ...currentItinerary, items: newItems };
     
     persistChanges(updated);
-    setActiveReviewForms(prev => ({ ...prev, [idx]: false })); // Close form
+    closeReviewModal();
     
     if (input.shareYelp) {
         alert(`Review posted to Yelp for ${newItems[idx].locationName}! (Mock)`);
@@ -179,7 +198,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
 
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm md:p-8 animate-in fade-in duration-200">
-        <div className="bg-stone-50 dark:bg-neutral-950 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 md:zoom-in-95 duration-300 border border-stone-200 dark:border-neutral-800">
+        <div className="bg-stone-50 dark:bg-neutral-950 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 md:zoom-in-95 duration-300 border border-stone-200 dark:border-neutral-800 relative">
             {/* Header */}
             <div className="bg-white dark:bg-neutral-900 p-6 border-b border-stone-200 dark:border-neutral-800 sticky top-0 z-10 flex items-center justify-between shadow-sm shrink-0">
             <div className="flex-1 mr-4">
@@ -329,111 +348,130 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                 <div className="h-px bg-stone-200 dark:bg-neutral-800 flex-1"></div>
             </div>
 
-            {/* Timeline List (Vertical Layout) */}
+            {/* Timeline List (Expanded Accordion Layout) */}
             <div className="flex flex-col gap-6">
                 {currentItinerary.items.map((item, idx) => (
-                    <div key={idx} className={`bg-white dark:bg-neutral-900 rounded-3xl border shadow-sm overflow-hidden group transition-all relative flex flex-col md:flex-row h-auto md:h-56 ${item.completed ? 'border-green-500 dark:border-green-800 opacity-80' : 'border-stone-200 dark:border-neutral-800 hover:border-orange-400'}`}>
-                    
-                    {/* Check In Button (Top Right on Mobile, Overlay on Desktop) */}
-                    <button 
-                        onClick={() => toggleComplete(idx)}
-                        className={`absolute top-4 right-4 z-20 p-2 rounded-full backdrop-blur-md transition-all ${item.completed ? 'bg-green-500 text-white' : 'bg-black/30 text-white hover:bg-green-500'}`}
-                        title={item.completed ? "Mark as not visited" : "Check In"}
+                    <div 
+                        key={idx} 
+                        className={`bg-white dark:bg-neutral-900 rounded-3xl border shadow-sm overflow-hidden group transition-all duration-300 relative ${item.completed ? 'border-green-500 dark:border-green-800' : 'border-stone-200 dark:border-neutral-800'} ${expandedItem === idx ? 'ring-2 ring-orange-400 dark:ring-orange-800' : 'hover:border-orange-400'}`}
                     >
-                        {item.completed ? <CheckCircle className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-                    </button>
+                        {/* Collapsed/Header View */}
+                        <div 
+                            className="flex flex-col md:flex-row cursor-pointer"
+                            onClick={() => toggleExpand(idx)}
+                        >
+                            <div className="h-48 md:h-56 md:w-1/3 bg-stone-200 dark:bg-neutral-800 relative shrink-0">
+                                <img 
+                                    src={item.imageUrl || `https://source.unsplash.com/random/800x600?${item.category.toLowerCase()},${idx}`} 
+                                    className={`w-full h-full object-cover transition-all ${item.completed ? 'grayscale' : ''}`}
+                                    onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1000')}
+                                    alt={item.locationName}
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+                                <div className="absolute bottom-3 left-4 text-white">
+                                    <div className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-lg mb-1 w-fit shadow-lg ${item.completed ? 'bg-green-600' : 'bg-orange-600'}`}>
+                                        {item.completed ? 'Visited' : item.time}
+                                    </div>
+                                </div>
+                            </div>
 
-                    <div className="h-48 md:h-full md:w-1/3 bg-stone-200 dark:bg-neutral-800 relative shrink-0">
-                        <img 
-                            src={item.imageUrl || `https://source.unsplash.com/random/800x600?${item.category.toLowerCase()},${idx}`} 
-                            className={`w-full h-full object-cover transition-all ${item.completed ? 'grayscale' : ''}`}
-                            onError={(e) => (e.currentTarget.src = 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=1000')}
-                            alt={item.locationName}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                        <div className="absolute bottom-3 left-4 text-white">
-                            <div className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-lg mb-1 w-fit shadow-lg ${item.completed ? 'bg-green-600' : 'bg-orange-600'}`}>
-                                {item.completed ? 'Visited' : item.time}
+                            <div className="p-5 flex flex-col flex-1">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className={`font-black text-xl leading-tight truncate pr-8 ${item.completed ? 'text-stone-500 line-through' : 'text-stone-900 dark:text-white'}`}>{item.locationName}</h3>
+                                    <Badge variant="outline" className="shrink-0">{item.category}</Badge>
+                                </div>
+                                
+                                <div className="flex items-center gap-3 mb-3">
+                                    <StarRating rating={item.rating || 4.5} />
+                                    <span className="text-xs font-bold text-stone-400">({item.reviewCount || 100})</span>
+                                    <span className="text-xs font-black text-stone-600 dark:text-stone-300 px-2 py-0.5 bg-stone-100 dark:bg-neutral-800 rounded-md">{item.price || '$$'}</span>
+                                </div>
+                                
+                                <p className="text-stone-600 dark:text-stone-400 text-sm font-medium mb-4 leading-relaxed line-clamp-2 md:line-clamp-3">{item.description}</p>
+                                
+                                <div className="mt-auto flex items-center justify-between">
+                                    <div className="flex gap-2">
+                                        {item.verified && (
+                                            <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 px-3 py-1.5 rounded-lg w-fit">
+                                                <span className="font-black">Yelp</span> Verified
+                                            </div>
+                                        )}
+                                        {item.completed && (
+                                             <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/10 px-3 py-1.5 rounded-lg w-fit">
+                                                <CheckCircle className="w-3 h-3" /> Checked In
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="text-stone-400 flex items-center gap-2 text-xs font-bold">
+                                        {expandedItem === idx ? 'Close' : 'Details'}
+                                        {expandedItem === idx ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="p-5 flex flex-col flex-1 overflow-hidden">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className={`font-black text-xl leading-tight truncate ${item.completed ? 'text-stone-500 line-through' : 'text-stone-900 dark:text-white'}`}>{item.locationName}</h3>
-                            <Badge variant="outline" className="shrink-0">{item.category}</Badge>
-                        </div>
-                        
-                        <div className="flex items-center gap-3 mb-3">
-                            <StarRating rating={item.rating || 4.5} />
-                            <span className="text-xs font-bold text-stone-400">({item.reviewCount || 100})</span>
-                            <span className="text-xs font-black text-stone-600 dark:text-stone-300 px-2 py-0.5 bg-stone-100 dark:bg-neutral-800 rounded-md">{item.price || '$$'}</span>
-                        </div>
-                        
-                        <p className="text-stone-600 dark:text-stone-400 text-sm font-medium mb-4 leading-relaxed line-clamp-2 md:line-clamp-3">{item.description}</p>
-                        
-                        <div className="mt-auto flex items-center justify-between">
-                             <div className="flex gap-2">
-                                {item.verified && (
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 px-3 py-1.5 rounded-lg w-fit">
-                                        <span className="font-black">Yelp</span> Verified
+                        {/* Expanded Content Area (Actions & Details) */}
+                        {expandedItem === idx && (
+                            <div className="p-6 border-t border-stone-100 dark:border-neutral-800 bg-stone-50 dark:bg-neutral-800/50 animate-in slide-in-from-top-2">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Action Column */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">Activity Status</h4>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); toggleComplete(idx); }}
+                                            className={`w-full p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${
+                                                item.completed 
+                                                ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
+                                                : 'border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-orange-400 text-stone-600 dark:text-stone-300'
+                                            }`}
+                                        >
+                                            <div className={`p-2 rounded-full ${item.completed ? 'bg-green-200 dark:bg-green-800' : 'bg-stone-100 dark:bg-neutral-800'}`}>
+                                                {item.completed ? <CheckCircle className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
+                                            </div>
+                                            <div className="text-left">
+                                                <div className="font-bold text-base">{item.completed ? 'Verified Visit' : 'Mark as Visited'}</div>
+                                                <div className="text-xs opacity-70 font-medium">{item.completed ? 'You have checked in at this location.' : 'Tap here when you arrive.'}</div>
+                                            </div>
+                                        </button>
                                     </div>
-                                )}
-                             </div>
 
-                            {/* Review Display or Toggle */}
-                            {item.userReview ? (
-                                <div className="text-[10px] bg-stone-50 dark:bg-neutral-800 px-3 py-1 rounded-lg border border-stone-100 dark:border-neutral-700 flex items-center gap-2">
-                                    <span className="font-bold text-orange-600">Rated {item.userReview.rating}/5</span>
-                                </div>
-                            ) : (
-                                !allowEdit && (
-                                    <button 
-                                        onClick={() => toggleReviewForm(idx)}
-                                        className="text-stone-400 text-xs font-bold hover:text-orange-600 transition-colors flex items-center gap-1"
-                                    >
-                                        <PenTool className="w-3 h-3" /> Write Review
-                                    </button>
-                                )
-                            )}
-                        </div>
-
-                         {/* Review Form Overlay */}
-                         {activeReviewForms[idx] && (
-                            <div className="absolute inset-0 bg-white dark:bg-neutral-900 p-4 z-10 flex flex-col justify-center animate-in fade-in">
-                                <div className="mb-3 flex justify-center">
-                                    <StarRating 
-                                        rating={reviewInputs[idx]?.rating || 5} 
-                                        interactive={true}
-                                        onRate={(r) => setReviewInputs(prev => ({ ...prev, [idx]: { ...prev[idx], rating: r } }))}
-                                    />
-                                </div>
-                                <textarea 
-                                    className="w-full text-xs p-2 rounded-lg border border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 mb-2 focus:ring-1 focus:ring-orange-500 outline-none"
-                                    placeholder="How was it?"
-                                    rows={2}
-                                    value={reviewInputs[idx]?.text || ''}
-                                    onChange={(e) => setReviewInputs(prev => ({ ...prev, [idx]: { ...prev[idx], text: e.target.value } }))}
-                                />
-                                <div className="flex justify-between items-center">
-                                    <div className="flex items-center gap-2">
-                                        <input 
-                                            type="checkbox" 
-                                            id={`yelp-${idx}`}
-                                            checked={reviewInputs[idx]?.shareYelp || false}
-                                            onChange={(e) => setReviewInputs(prev => ({ ...prev, [idx]: { ...prev[idx], shareYelp: e.target.checked } }))}
-                                            className="accent-red-500"
-                                        />
-                                        <label htmlFor={`yelp-${idx}`} className="text-xs font-bold text-stone-500">Post to Yelp</label>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <Button variant="secondary" className="h-8 py-0 text-xs w-auto" onClick={() => toggleReviewForm(idx)}>Cancel</Button>
-                                        <Button className="h-8 py-0 text-xs w-auto" onClick={() => submitReview(idx)} icon={Send}>Post</Button>
+                                    {/* Review Column */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-xs font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">Your Experience</h4>
+                                        
+                                        {item.userReview ? (
+                                             <div className="bg-white dark:bg-neutral-900 p-4 rounded-xl border border-stone-200 dark:border-neutral-700">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="text-xs font-bold text-orange-600">You rated it</div>
+                                                    <StarRating rating={item.userReview.rating} />
+                                                </div>
+                                                <p className="text-sm text-stone-600 dark:text-stone-300 italic mb-3">"{item.userReview.text}"</p>
+                                                {item.userReview.postedToYelp && (
+                                                    <div className="text-[10px] text-red-500 font-bold flex items-center gap-1 bg-red-50 dark:bg-red-900/10 px-2 py-1 rounded w-fit">
+                                                        <Share2 className="w-3 h-3" /> Shared on Yelp
+                                                    </div>
+                                                )}
+                                             </div>
+                                        ) : (
+                                            !allowEdit && (
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); openReviewModal(idx); }}
+                                                    className="w-full p-4 rounded-xl border-2 border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-orange-400 text-stone-600 dark:text-stone-300 flex items-center gap-4 transition-all"
+                                                >
+                                                    <div className="p-2 rounded-full bg-stone-100 dark:bg-neutral-800">
+                                                        <PenTool className="w-6 h-6" />
+                                                    </div>
+                                                    <div className="text-left">
+                                                        <div className="font-bold text-base">Write a Review</div>
+                                                        <div className="text-xs opacity-70 font-medium">Share your thoughts with the community.</div>
+                                                    </div>
+                                                </button>
+                                            )
+                                        )}
                                     </div>
                                 </div>
                             </div>
                         )}
-                    </div>
                     </div>
                 ))}
             </div>
@@ -463,6 +501,68 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                 )}
             </div>
             </div>
+
+            {/* REVIEW MODAL OVERLAY */}
+            {reviewingItemIndex !== null && currentItinerary.items[reviewingItemIndex] && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-neutral-900 w-full max-w-lg rounded-3xl shadow-2xl p-6 md:p-8 animate-in zoom-in-95 border border-stone-200 dark:border-neutral-800 flex flex-col relative overflow-hidden">
+                        
+                        {/* Decorative background element */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-500 via-yellow-500 to-orange-500"></div>
+
+                        <div className="flex justify-between items-start mb-8">
+                            <div>
+                                <h3 className="text-xl md:text-2xl font-black text-stone-900 dark:text-white leading-tight mb-1">
+                                    Reviewing {currentItinerary.items[reviewingItemIndex].locationName}
+                                </h3>
+                                <p className="text-stone-500 dark:text-stone-400 font-medium text-sm">Your feedback helps the community.</p>
+                            </div>
+                            <button onClick={closeReviewModal} className="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-neutral-800 transition-colors">
+                                <X className="w-5 h-5 text-stone-500" />
+                            </button>
+                        </div>
+                        
+                        <div className="flex flex-col items-center mb-8">
+                             <div className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-400">Tap to Rate</div>
+                             <StarRating 
+                                rating={reviewInputs[reviewingItemIndex]?.rating || 5} 
+                                interactive={true}
+                                size="w-8 h-8"
+                                onRate={(r) => setReviewInputs(prev => ({ ...prev, [reviewingItemIndex]: { ...prev[reviewingItemIndex], rating: r } }))}
+                             />
+                        </div>
+
+                        <textarea 
+                            className="w-full text-base p-4 rounded-2xl border-2 border-stone-200 dark:border-neutral-700 bg-stone-50 dark:bg-neutral-800 mb-6 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all resize-none font-medium text-stone-800 dark:text-stone-200 placeholder-stone-400"
+                            placeholder="Share your experience (food, service, vibe)..."
+                            rows={4}
+                            value={reviewInputs[reviewingItemIndex]?.text || ''}
+                            onChange={(e) => setReviewInputs(prev => ({ ...prev, [reviewingItemIndex]: { ...prev[reviewingItemIndex], text: e.target.value } }))}
+                        />
+
+                        <div className="flex items-center justify-between pt-2">
+                             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setReviewInputs(prev => ({ ...prev, [reviewingItemIndex]: { ...prev[reviewingItemIndex], shareYelp: !prev[reviewingItemIndex]?.shareYelp } }))}>
+                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${reviewInputs[reviewingItemIndex]?.shareYelp ? 'bg-white border-white' : 'border-stone-400 bg-transparent'}`}>
+                                    {reviewInputs[reviewingItemIndex]?.shareYelp && <CheckCircle className="w-4 h-4 text-black" />}
+                                </div>
+                                <span className="text-xs font-bold text-stone-500 group-hover:text-stone-900 dark:group-hover:text-stone-300 transition-colors">Post to Yelp</span>
+                             </div>
+
+                             <div className="flex gap-3">
+                                 <button onClick={closeReviewModal} className="text-xs font-bold uppercase tracking-wider text-stone-500 hover:text-stone-900 dark:hover:text-white px-4 py-2 transition-colors">
+                                     CANCEL
+                                 </button>
+                                 <button 
+                                    onClick={submitReview} 
+                                    className="bg-orange-600 hover:bg-orange-500 text-white rounded-full px-6 py-2.5 text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-orange-600/20 transition-all active:scale-95"
+                                 >
+                                     <Send className="w-3 h-3" /> POST
+                                 </button>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     </div>
   );

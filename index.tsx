@@ -18,6 +18,9 @@ import { SettingsView } from './components/views/SettingsView';
 import { CommunityView } from './components/views/CommunityView';
 import { ProfileView } from './components/views/ProfileView';
 
+import { ToastProvider } from './components/ui/toast';
+import { CookieConsent } from './components/ui/cookie-consent';
+
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [view, setView] = useState<ViewState>('home');
@@ -92,40 +95,46 @@ export default function App() {
     );
   }
 
-  // Router Logic
-  if (view === 'home') return <LandingPage onGetStarted={() => user ? setView('dashboard') : setView('auth')} onNavigate={setView} />;
-  if (view === 'about') return <AboutPage onBack={() => setView('home')} />;
-  if (view === 'privacy') return <PrivacyPage onBack={() => setView('home')} />;
-  if (view === 'auth') return <AuthView onLogin={handleLogin} onBack={() => setView('home')} />;
-  if (view === 'onboarding') return <OnboardingView onComplete={handleOnboardingComplete} />;
+  return (
+    <ToastProvider>
+        <CookieConsent />
+        {/* Router Logic */}
+        {(() => {
+            if (view === 'home') return <LandingPage onGetStarted={() => user ? setView('dashboard') : setView('auth')} onNavigate={setView} />;
+            if (view === 'about') return <AboutPage onBack={() => setView('home')} />;
+            if (view === 'privacy') return <PrivacyPage onBack={() => setView('home')} />;
+            if (view === 'auth') return <AuthView onLogin={handleLogin} onBack={() => setView('home')} />;
+            if (view === 'onboarding') return <OnboardingView onComplete={handleOnboardingComplete} />;
 
-  // Protected Routes
-  if (user) {
-    return (
-      <>
-        {view === 'create' ? (
-           <CreateItineraryView user={user} onClose={() => setView('dashboard')} onSave={handleSaveItinerary} />
-        ) : view === 'community' ? (
-            <CommunityView onBack={() => setView('dashboard')} onClone={handleCloneItinerary} />
-        ) : view === 'profile' ? (
-            <ProfileView user={user} onBack={() => setView('dashboard')} onUpdate={handleUpdateProfile} onLogout={handleLogout} />
-        ) : (
-           <Dashboard 
-            user={user} 
-            savedItineraries={savedItineraries} 
-            onCreateClick={() => setView('create')}
-            onLogout={handleLogout}
-            onOpenSettings={() => setShowSettings(true)}
-            onNavigate={setView}
-            onRemix={handleRemixItinerary}
-          />
-        )}
-        {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
-      </>
-    );
-  }
-
-  return <div />;
+            // Protected Routes
+            if (user) {
+                return (
+                <>
+                    {view === 'create' ? (
+                    <CreateItineraryView user={user} onClose={() => setView('dashboard')} onSave={handleSaveItinerary} />
+                    ) : view === 'community' ? (
+                        <CommunityView onBack={() => setView('dashboard')} onClone={handleCloneItinerary} />
+                    ) : view === 'profile' ? (
+                        <ProfileView user={user} onBack={() => setView('dashboard')} onUpdate={handleUpdateProfile} onLogout={handleLogout} />
+                    ) : (
+                    <Dashboard 
+                        user={user} 
+                        savedItineraries={savedItineraries} 
+                        onCreateClick={() => setView('create')}
+                        onLogout={handleLogout}
+                        onOpenSettings={() => setShowSettings(true)}
+                        onNavigate={setView}
+                        onRemix={handleRemixItinerary}
+                    />
+                    )}
+                    {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
+                </>
+                );
+            }
+            return <div />;
+        })()}
+    </ToastProvider>
+  );
 }
 
 const root = createRoot(document.getElementById('root')!);

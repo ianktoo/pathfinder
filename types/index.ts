@@ -44,5 +44,13 @@ export interface Itinerary {
   bookmarked?: boolean;
 }
 
+export type ToastType = 'success' | 'error' | 'info';
+
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type: ToastType;
+}
+
 export type ModelID = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
 export type ViewState = 'home' | 'auth' | 'onboarding' | 'dashboard' | 'create' | 'about' | 'privacy' | 'community' | 'profile' | 'library';

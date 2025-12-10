@@ -1,11 +1,14 @@
+
 import React, { useState } from 'react';
 import { Type } from "@google/genai";
-import { X, Check, MapPin, ShoppingBag, Coffee, Utensils, Music, Camera } from 'lucide-react';
+import { X, Check, MapPin, ShoppingBag, Coffee, Utensils, Music, Camera, LocateFixed } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Itinerary, UserProfile } from '../../types';
 import { ModelRegistry, PromptTemplate, RunnableSequence } from '../../services/ai';
 import { ItineraryDetailModal } from './ItineraryDetailModal';
 import { BackendService } from '../../services/storage';
+import { LocationService } from '../../services/location';
+import { useToast } from '../ui/toast';
 
 interface CreateItineraryViewProps {
   user: UserProfile;
@@ -16,14 +19,18 @@ interface CreateItineraryViewProps {
 export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryViewProps) => {
   const [mood, setMood] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [result, setResult] = useState<Itinerary | null>(null);
+  const { showToast } = useToast();
+
+  // Location State
+  const [targetCity, setTargetCity] = useState(user.city);
+  const [detectingLocation, setDetectingLocation] = useState(false);
 
   // Curation Options
   const [budget, setBudget] = useState('$$');
   const [duration, setDuration] = useState('Full Day');
   const [groupSize, setGroupSize] = useState('Couple');
-  
-  // New Options
   const [stopCount, setStopCount] = useState(4);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
@@ -41,6 +48,20 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
     { id: 'Club', icon: Music, label: 'Nightlife' },
   ];
 
+  const handleDetectLocation = async () => {
+    setDetectingLocation(true);
+    try {
+        const position = await LocationService.getCurrentPosition();
+        const city = await LocationService.getCityFromCoords(position.coords.latitude, position.coords.longitude);
+        setTargetCity(city);
+        showToast(`Location set to ${city}`, 'success');
+    } catch (error) {
+        showToast(error instanceof Error ? error.message : "Location detection failed", 'error');
+    } finally {
+        setDetectingLocation(false);
+    }
+  };
+
   const toggleType = (id: string) => {
     if (selectedTypes.includes(id)) {
         setSelectedTypes(selectedTypes.filter(t => t !== id));
@@ -52,6 +73,22 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
   const generateItinerary = async () => {
     if (!mood) return;
     setLoading(true);
+
+    const steps = [
+        "Consulting the Oracle...", 
+        "Scanning local hotspots...", 
+        "Checking Yelp ratings...", 
+        "Verifying opening hours...", 
+        "Finalizing your adventure..."
+    ];
+
+    // Simulate progressive loading steps
+    let stepIndex = 0;
+    const interval = setInterval(() => {
+        setLoadingStep(steps[stepIndex]);
+        stepIndex = (stepIndex + 1) % steps.length;
+    }, 2000);
+    setLoadingStep(steps[0]);
 
     try {
       const typeConstraint = selectedTypes.length > 0 
@@ -91,7 +128,8 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                 category: { type: Type.STRING },
                 rating: { type: Type.NUMBER },
                 reviewCount: { type: Type.NUMBER },
-                price: { type: Type.STRING }
+                price: { type: Type.STRING },
+                imageUrl: { type: Type.STRING }
               }
             }
           }
@@ -104,7 +142,7 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
       const data = await chain.invoke({
         duration,
         groupSize,
-        city: user.city,
+        city: targetCity,
         personality: user.personality,
         mood: mood,
         budget
@@ -112,7 +150,7 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
 
       const newItinerary: Itinerary = {
         id: Date.now().toString(),
-        title: data.title || `${mood} in ${user.city}`,
+        title: data.title || `${mood} in ${targetCity}`,
         date: new Date().toLocaleDateString(),
         mood,
         tags: [groupSize, budget, duration, ...selectedTypes],
@@ -120,10 +158,12 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
       };
 
       setResult(newItinerary);
+      showToast('Itinerary curated successfully!', 'success');
     } catch (error) {
       console.error(error);
-      alert("Failed to generate. Please try again.");
+      showToast("Failed to generate itinerary. Please try again.", 'error');
     } finally {
+      clearInterval(interval);
       setLoading(false);
     }
   };
@@ -131,7 +171,7 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
   const handleShare = (itinerary: Itinerary) => {
       const success = BackendService.publishItinerary(itinerary, user.name);
       if (success) {
-          alert("Published to Community Feed!");
+          showToast("Published to Community Feed!", 'success');
       }
       onSave(itinerary); // Auto save when shared
   };
@@ -143,7 +183,7 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
             onClose={() => setResult(null)} 
             onSave={onSave}
             onShare={handleShare}
-            userCity={user.city}
+            userCity={targetCity}
             allowEdit={true}
         />
     );
@@ -159,6 +199,29 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
         </div>
         
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            
+            {/* Location Selector */}
+            <section className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-stone-200 dark:border-neutral-800 shadow-sm flex items-center justify-between">
+                <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">Target City</label>
+                    <input 
+                        className="text-lg font-black bg-transparent outline-none text-stone-900 dark:text-white placeholder-stone-300"
+                        value={targetCity}
+                        onChange={(e) => setTargetCity(e.target.value)}
+                        placeholder="Where are you going?"
+                    />
+                </div>
+                <Button 
+                    variant="ghost" 
+                    className="w-auto h-auto p-3" 
+                    onClick={handleDetectLocation}
+                    isLoading={detectingLocation}
+                    title="Use Current Location"
+                >
+                    <LocateFixed className="w-5 h-5" />
+                </Button>
+            </section>
+
             {/* Mood Selector */}
             <section>
                 <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Vibe & Mood</label>
@@ -259,7 +322,7 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
 
             <div className="pt-6">
                 <Button onClick={generateItinerary} disabled={!mood || loading} isLoading={loading}>
-                    {loading ? 'Consulting the Oracle...' : 'Generate Itinerary'}
+                    {loading ? loadingStep : 'Generate Itinerary'}
                 </Button>
             </div>
         </div>

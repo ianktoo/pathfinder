@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Flame, Home, Users, Settings, LogOut, Plus, Calendar, Share2, MapPin, Clock, Globe, Lock, Utensils, Coffee, Music, ShoppingBag, Camera, Search, Filter, Library } from 'lucide-react';
+import { Flame, Home, Users, Settings, LogOut, Plus, Calendar, Share2, MapPin, Clock, Globe, Lock, Utensils, Coffee, Music, ShoppingBag, Camera, Search, Filter, Library, Copy } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { UserProfile, Itinerary, ViewState } from '../../types';
 import { ItineraryDetailModal } from './ItineraryDetailModal';
@@ -37,6 +37,12 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
         BackendService.saveItinerary(updatedItin);
         alert("Published to Community Feed!");
     }
+  };
+
+  const handleRemix = (itinerary: Itinerary) => {
+      if (onRemix) {
+          onRemix(itinerary);
+      }
   };
 
   // Filter Logic
@@ -229,7 +235,7 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
                                     {it.mood}
                                 </span>
                             </div>
-                            <div className="absolute top-4 right-4">
+                            <div className="absolute top-4 right-4 flex gap-2">
                                 {it.shared ? (
                                     <div className="bg-green-500/80 backdrop-blur-md text-white p-1.5 rounded-full" title="Shared with Community">
                                         <Globe className="w-3.5 h-3.5" />
@@ -256,9 +262,27 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
                         </div>
 
                         <div className="p-5 flex-1 flex flex-col">
-                            <h3 className="font-black text-xl text-stone-900 dark:text-white leading-tight mb-3 line-clamp-2" title={it.title}>
-                                {it.title}
-                            </h3>
+                            <div className="flex justify-between items-start mb-3">
+                                <h3 className="font-black text-xl text-stone-900 dark:text-white leading-tight line-clamp-2 pr-4" title={it.title}>
+                                    {it.title}
+                                </h3>
+                                <div className="flex gap-1 shrink-0">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleRemix(it); }} 
+                                        className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-neutral-800 text-stone-400 hover:text-orange-600 transition-colors"
+                                        title="Remix this plan"
+                                    >
+                                        <Copy className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); handleShare(it); }} 
+                                        className="p-1.5 rounded-lg hover:bg-stone-100 dark:hover:bg-neutral-800 text-stone-400 hover:text-orange-600 transition-colors"
+                                        title="Share"
+                                    >
+                                        <Share2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
                             
                             <div className="mt-auto pt-4 flex items-center justify-between border-t border-stone-100 dark:border-neutral-800">
                                 <div className="flex items-center gap-1">
