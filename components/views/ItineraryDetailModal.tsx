@@ -1,12 +1,12 @@
-
-import React, { useState, useEffect } from 'react';
-import { X, MessageSquare, Star, Share2, Map, Navigation, Copy, Clock, Calendar, Bookmark, CheckCircle, Circle, PenTool, Send, ThumbsUp, ThumbsDown, MapPin, Globe, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, MessageSquare, Star, Share2, Map, Navigation, Copy, Clock, Calendar, Bookmark, CheckCircle, Circle, PenTool, Send, ThumbsUp, ThumbsDown, MapPin, Globe, ChevronDown, ChevronUp, Download, Image as ImageIcon } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Itinerary, ItineraryItem, UserReview } from '../../types';
 import { ModelRegistry } from '../../services/ai';
 import { BackendService } from '../../services/storage';
 import { Type } from "@google/genai";
+import html2canvas from 'html2canvas';
 
 const StarRating = ({ rating, interactive = false, onRate, size = "w-4 h-4" }: { rating: number, interactive?: boolean, onRate?: (r: number) => void, size?: string }) => (
   <div className="flex items-center gap-1">
@@ -58,7 +58,9 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
   const [reviewingItemIndex, setReviewingItemIndex] = useState<number | null>(null);
   const [reviewInputs, setReviewInputs] = useState<Record<number, { text: string, rating: number, shareYelp: boolean }>>({});
 
-  // Persist changes immediately when check-ins or bookmarks happen
+  // Ref for social card generation
+  const storyCardRef = useRef<HTMLDivElement>(null);
+
   const persistChanges = (updated: Itinerary) => {
     setCurrentItinerary(updated);
     if (!allowEdit) {
@@ -77,6 +79,25 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
     }
     const mapUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}${waypoints}&travelmode=driving`;
     window.open(mapUrl, '_blank');
+  };
+
+  const handleDownloadCard = async () => {
+    if (storyCardRef.current) {
+        try {
+            const canvas = await html2canvas(storyCardRef.current, {
+                useCORS: true, 
+                scale: 2, 
+                backgroundColor: null,
+            });
+            const link = document.createElement('a');
+            link.download = `pathfinder-story-${currentItinerary.id}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (error) {
+            console.error("Failed to generate card", error);
+            alert("Could not generate image. Browser security might be blocking external images.");
+        }
+    }
   };
 
   const toggleBookmark = () => {
@@ -199,6 +220,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
   return (
     <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/80 backdrop-blur-sm md:p-8 animate-in fade-in duration-200">
         <div className="bg-stone-50 dark:bg-neutral-950 w-full max-w-5xl h-[95vh] md:h-[90vh] rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-5 md:zoom-in-95 duration-300 border border-stone-200 dark:border-neutral-800 relative">
+            
             {/* Header */}
             <div className="bg-white dark:bg-neutral-900 p-6 border-b border-stone-200 dark:border-neutral-800 sticky top-0 z-10 flex items-center justify-between shadow-sm shrink-0">
             <div className="flex-1 mr-4">
@@ -208,6 +230,13 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                 </div>
             </div>
             <div className="flex gap-2 shrink-0">
+                <button 
+                    onClick={handleDownloadCard} 
+                    className="p-3 rounded-xl transition-colors text-stone-500 hover:bg-stone-100 dark:hover:bg-neutral-800"
+                    title="Export Story Card"
+                >
+                    <ImageIcon className="w-5 h-5" />
+                </button>
                 <button 
                     onClick={toggleBookmark}
                     className={`p-3 rounded-xl transition-colors ${currentItinerary.bookmarked ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' : 'text-stone-500 hover:bg-stone-100 dark:hover:bg-neutral-800'}`}
@@ -563,6 +592,47 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                     </div>
                 </div>
             )}
+
+            {/* HIDDEN STORY CARD FOR EXPORT */}
+            <div 
+                ref={storyCardRef}
+                className="fixed top-0 left-[-9999px] w-[375px] h-[667px] bg-stone-900 text-white overflow-hidden flex flex-col"
+            >
+                <div className="relative h-2/3">
+                    <img 
+                        src={currentItinerary.items[0]?.imageUrl || `https://source.unsplash.com/random/800x1200?${currentItinerary.mood}`} 
+                        className="w-full h-full object-cover opacity-80"
+                        alt="Cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/50 to-transparent"></div>
+                    <div className="absolute bottom-8 left-6 right-6">
+                        <div className="bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full w-fit mb-4 uppercase tracking-widest">
+                            {currentItinerary.mood} Vibes
+                        </div>
+                        <h1 className="text-4xl font-black leading-none mb-4">{currentItinerary.title}</h1>
+                        <div className="flex items-center gap-2 text-stone-300 font-bold text-sm">
+                            <MapPin className="w-4 h-4 text-orange-500" />
+                            <span>{userCity}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-1 bg-stone-900 p-6">
+                    <div className="space-y-4">
+                        {currentItinerary.items.slice(0, 3).map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-4">
+                                <div className="w-12 text-sm font-bold text-orange-500">{item.time}</div>
+                                <div className="flex-1 border-b border-stone-800 pb-2">
+                                    <div className="font-bold text-lg">{item.locationName}</div>
+                                    <div className="text-xs text-stone-500 uppercase tracking-wide">{item.category}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="mt-auto pt-8 flex items-center justify-center gap-2 text-stone-500 font-black tracking-widest text-xs uppercase">
+                        <Globe className="w-4 h-4" /> Curated on Pathfinder
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
   );

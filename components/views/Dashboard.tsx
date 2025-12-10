@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Flame, Home, Users, Settings, LogOut, Plus, Calendar, Share2, MapPin, Clock, Globe, Lock, Utensils, Coffee, Music, ShoppingBag, Camera, Search, Filter, Library, Copy } from 'lucide-react';
 import { Badge } from '../ui/badge';

@@ -9,9 +9,10 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   type?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
 }
 
-export const Input = ({ label, className, ...props }: InputProps) => (
+export const Input = ({ label, className, disabled, ...props }: InputProps) => (
   <div className="mb-4">
     {label && (
       <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1.5">
@@ -19,8 +20,9 @@ export const Input = ({ label, className, ...props }: InputProps) => (
       </label>
     )}
     <input
+      disabled={disabled}
       className={cn(
-        "w-full px-4 py-3.5 rounded-xl border-2 border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-stone-900 dark:text-white focus:outline-none focus:border-orange-500 dark:focus:border-orange-500 transition-all placeholder-stone-400 dark:placeholder-neutral-500 font-medium",
+        "w-full px-4 py-3.5 rounded-xl border-2 border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-stone-900 dark:text-white focus:outline-none focus:border-orange-500 dark:focus:border-orange-500 transition-all placeholder-stone-400 dark:placeholder-neutral-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed",
         className
       )}
       {...props}

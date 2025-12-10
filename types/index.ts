@@ -42,6 +42,7 @@ export interface Itinerary {
   likes?: number;
   shared?: boolean;
   bookmarked?: boolean;
+  verified_community?: boolean;
 }
 
 export type ToastType = 'success' | 'error' | 'info';

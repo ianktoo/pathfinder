@@ -8,7 +8,8 @@ const MOCK_COMMUNITY_DATA: Itinerary[] = [
     date: '2024-03-15',
     mood: 'Adventure',
     author: 'Kenji S.',
-    likes: 342,
+    likes: 1242,
+    verified_community: true,
     tags: ['Nightlife', 'Foodie', 'Cyberpunk'],
     items: [
       {
@@ -44,6 +45,7 @@ const MOCK_COMMUNITY_DATA: Itinerary[] = [
     mood: 'Chill',
     author: 'Sarah Jenkins',
     likes: 156,
+    verified_community: false,
     tags: ['Coffee', 'Vintage', 'Art'],
     items: [
       {
@@ -79,6 +81,7 @@ const MOCK_COMMUNITY_DATA: Itinerary[] = [
     mood: 'Cultural',
     author: 'Jean-Pierre',
     likes: 890,
+    verified_community: true,
     tags: ['Romantic', 'Museums', 'Wine'],
     items: [
       {
@@ -132,7 +135,8 @@ export const BackendService = {
             ...itinerary,
             id: `pub_${Date.now()}`,
             author: authorName,
-            likes: 0
+            likes: 0,
+            verified_community: false
         };
         const existing = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
         localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
