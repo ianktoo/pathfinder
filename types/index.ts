@@ -13,6 +13,13 @@ export interface YelpData {
   imageUrl?: string;
 }
 
+export interface UserReview {
+  rating: number;
+  text: string;
+  date: string;
+  postedToYelp: boolean;
+}
+
 export interface ItineraryItem extends YelpData {
   time: string;
   activity: string;
@@ -20,6 +27,8 @@ export interface ItineraryItem extends YelpData {
   description: string;
   verified: boolean;
   category: 'Food' | 'Activity' | 'Nightlife';
+  completed?: boolean;
+  userReview?: UserReview;
 }
 
 export interface Itinerary {
@@ -32,6 +41,7 @@ export interface Itinerary {
   author?: string;
   likes?: number;
   shared?: boolean;
+  bookmarked?: boolean;
 }
 
 export type ModelID = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
