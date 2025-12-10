@@ -130,8 +130,8 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
                     <div key={it.id} onClick={() => setSelectedItinerary(it)} className="bg-white dark:bg-neutral-900 p-5 rounded-3xl shadow-sm border border-stone-200 dark:border-neutral-800 hover:shadow-xl hover:shadow-orange-500/5 transition-all group cursor-pointer relative overflow-hidden">
                          <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-orange-500 to-yellow-500 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"></div>
                         <div className="flex justify-between items-start mb-4">
-                            <h3 className="font-black text-xl text-stone-900 dark:text-white leading-tight">{it.title}</h3>
-                            <div className="bg-stone-100 dark:bg-neutral-800 p-2 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
+                            <h3 className="font-black text-xl text-stone-900 dark:text-white leading-tight line-clamp-2">{it.title}</h3>
+                            <div className="bg-stone-100 dark:bg-neutral-800 p-2 rounded-lg group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors shrink-0 ml-2">
                                 <Share2 className="w-4 h-4 text-stone-500 group-hover:text-orange-600" />
                             </div>
                         </div>
