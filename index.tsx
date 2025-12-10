@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Loader2 } from 'lucide-react';
@@ -14,6 +15,8 @@ import { OnboardingView } from './components/views/OnboardingView';
 import { Dashboard } from './components/views/Dashboard';
 import { CreateItineraryView } from './components/views/CreateItineraryView';
 import { SettingsView } from './components/views/SettingsView';
+import { CommunityView } from './components/views/CommunityView';
+import { ProfileView } from './components/views/ProfileView';
 
 export default function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -61,6 +64,26 @@ export default function App() {
     setView('home');
   };
 
+  const handleCloneItinerary = (itinerary: Itinerary) => {
+    const cloned = { ...itinerary, id: Date.now().toString(), title: `(Copy) ${itinerary.title}` };
+    handleSaveItinerary(cloned);
+  };
+  
+  const handleRemixItinerary = (itinerary: Itinerary) => {
+    const remixed = { 
+        ...itinerary, 
+        id: Date.now().toString(), 
+        title: `(Remix) ${itinerary.title}`,
+        shared: false
+    };
+    handleSaveItinerary(remixed);
+    alert("Itinerary remixed! You can now find it in your library.");
+  };
+
+  const handleUpdateProfile = (updatedUser: UserProfile) => {
+      setUser(updatedUser);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950">
@@ -82,6 +105,10 @@ export default function App() {
       <>
         {view === 'create' ? (
            <CreateItineraryView user={user} onClose={() => setView('dashboard')} onSave={handleSaveItinerary} />
+        ) : view === 'community' ? (
+            <CommunityView onBack={() => setView('dashboard')} onClone={handleCloneItinerary} />
+        ) : view === 'profile' ? (
+            <ProfileView user={user} onBack={() => setView('dashboard')} onUpdate={handleUpdateProfile} onLogout={handleLogout} />
         ) : (
            <Dashboard 
             user={user} 
@@ -90,6 +117,7 @@ export default function App() {
             onLogout={handleLogout}
             onOpenSettings={() => setShowSettings(true)}
             onNavigate={setView}
+            onRemix={handleRemixItinerary}
           />
         )}
         {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}

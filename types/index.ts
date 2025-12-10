@@ -1,3 +1,4 @@
+
 export interface UserProfile {
   name: string;
   email: string;
@@ -30,7 +31,8 @@ export interface Itinerary {
   tags: string[];
   author?: string;
   likes?: number;
+  shared?: boolean;
 }
 
 export type ModelID = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
-export type ViewState = 'home' | 'auth' | 'onboarding' | 'dashboard' | 'create' | 'about' | 'privacy' | 'community';
+export type ViewState = 'home' | 'auth' | 'onboarding' | 'dashboard' | 'create' | 'about' | 'privacy' | 'community' | 'profile' | 'library';
