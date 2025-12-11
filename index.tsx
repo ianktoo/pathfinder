@@ -37,6 +37,18 @@ export default function App() {
     }
   }, []);
 
+  // Failsafe Timeout: Prevents getting stuck on loading screen if backend hangs
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => {
+      if (isLoading) {
+        console.warn("Initialization timed out, forcing UI render.");
+        setIsLoading(false);
+      }
+    }, 4000); // 4 seconds max load time
+
+    return () => clearTimeout(safetyTimer);
+  }, [isLoading]);
+
   // Load initial data & Auth Session
   useEffect(() => {
     ModelRegistry.init();
@@ -46,12 +58,7 @@ export default function App() {
         try {
             // 1. Try Supabase Session first
             if (isSupabaseConfigured()) {
-                // Use Promise.race to prevent hanging if Supabase client is misconfigured/blocked
-                const sessionPromise = supabase!.auth.getSession();
-                const { data: { session }, error } = await Promise.race([
-                    sessionPromise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
-                ]) as any;
+                const { data: { session }, error } = await supabase!.auth.getSession();
                 
                 if (session?.user && !error) {
                     const profile = AuthService.mapUserToProfile(session.user);
@@ -63,11 +70,13 @@ export default function App() {
                     const finalUser = (fullProfile || profile) as UserProfile;
                     setUser(finalUser);
                     
-                    // Fetch saved itineraries for user (don't await strictly to unblock UI)
+                    // Fetch saved itineraries for user
+                    // We don't await this to unblock the UI faster
                     BackendService.getSavedItineraries().then(setSavedItineraries);
                     
                     setView('dashboard');
-                    return; // Exit early
+                    setIsLoading(false);
+                    return; 
                 }
             }
 
@@ -80,8 +89,9 @@ export default function App() {
                 setView('dashboard');
             }
         } catch (e) {
-            console.error("Session check failed or timed out", e);
+            console.error("Session check failed", e);
         } finally {
+            // Ensure we stop loading unless the safety timer already did it
             setIsLoading(false);
         }
     };
@@ -101,7 +111,7 @@ export default function App() {
                 setSavedItineraries(saved);
                 
                 setView('dashboard');
-                setIsLoading(false); // Ensure loading is cleared on auth change
+                setIsLoading(false); 
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setSavedItineraries([]);

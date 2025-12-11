@@ -42,20 +42,23 @@ export const BackendService = {
 
   saveItinerary: async (itinerary: Itinerary): Promise<boolean> => {
     try {
-      // Ensure we have a valid UUID. If legacy ID or missing, generate one.
+      // Ensure we have a valid UUID.
       const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
       const itineraryToSave = { ...itinerary, id: validId };
 
       // 1. Always save to Local Storage (Cache/Offline)
+      // Note: Local storage keeps the denormalized JSON structure for ease of offline use
       const existing = JSON.parse(localStorage.getItem('saved_itineraries') || '[]');
-      const filtered = existing.filter((i: Itinerary) => i.id !== itinerary.id); // Filter out old ID
+      const filtered = existing.filter((i: Itinerary) => i.id !== itinerary.id);
       localStorage.setItem('saved_itineraries', JSON.stringify([itineraryToSave, ...filtered]));
 
-      // 2. Try Supabase
+      // 2. Try Supabase (Relational Save)
       if (isSupabaseConfigured()) {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
-          const { error } = await supabase!
+          
+          // A. Save the Itinerary Header
+          const { error: itinError } = await supabase!
             .from('itineraries')
             .upsert({
               id: validId,
@@ -64,15 +67,73 @@ export const BackendService = {
               date: itineraryToSave.date,
               mood: itineraryToSave.mood,
               tags: itineraryToSave.tags,
-              items: itineraryToSave.items, // JSONB column stores activities
               is_public: itineraryToSave.shared || false,
               likes_count: itineraryToSave.likes || 0,
               verified_community: itineraryToSave.verified_community || false
             }, { onConflict: 'id' });
 
-          if (error) {
-            logError("Supabase upsert failed:", error);
-            throw error;
+          if (itinError) throw itinError;
+
+          // B. Handle Items & Places Normalization
+          if (itineraryToSave.items && itineraryToSave.items.length > 0) {
+            
+            // 1. Upsert Places (Businesses)
+            // We use locationName + category as a rough unique key for this MVP since we lack real Yelp IDs.
+            // In a real app, we'd use the Yelp Business ID.
+            for (const item of itineraryToSave.items) {
+               await supabase!
+                 .from('places')
+                 .upsert({
+                    name: item.locationName,
+                    category: item.category,
+                    rating: item.rating,
+                    review_count: item.reviewCount,
+                    price: item.price,
+                    image_url: item.imageUrl,
+                    verified: item.verified
+                 }, { onConflict: 'name' }); // Assuming name is unique constraint for MVP
+            }
+
+            // 2. Clear existing links for this itinerary to prevent duplicates on update
+            await supabase!
+              .from('itinerary_items')
+              .delete()
+              .eq('itinerary_id', validId);
+
+            // 3. Link Places to Itinerary via itinerary_items
+            // We need to fetch the place IDs we just upserted/found.
+            // Optimized: We iterate again. In production, we'd use a single stored procedure.
+            const newLinks = [];
+            for (let i = 0; i < itineraryToSave.items.length; i++) {
+                const item = itineraryToSave.items[i];
+                
+                const { data: placeData } = await supabase!
+                    .from('places')
+                    .select('id')
+                    .eq('name', item.locationName)
+                    .single();
+
+                if (placeData) {
+                    newLinks.push({
+                        itinerary_id: validId,
+                        place_id: placeData.id,
+                        time: item.time,
+                        activity: item.activity,
+                        description: item.description,
+                        order_index: i,
+                        completed: item.completed || false,
+                        user_review: item.userReview // JSONB column in the join table
+                    });
+                }
+            }
+
+            if (newLinks.length > 0) {
+                const { error: linkError } = await supabase!
+                    .from('itinerary_items')
+                    .insert(newLinks);
+                
+                if (linkError) console.error("Link error", linkError);
+            }
           }
         }
       }
@@ -91,26 +152,68 @@ export const BackendService = {
       try {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
+          // Fetch Itineraries with joined Items and Places
+          // We assume relational structure: itineraries -> itinerary_items -> places
           const { data, error } = await supabase!
             .from('itineraries')
-            .select('*')
+            .select(`
+                *,
+                itinerary_items (
+                    time,
+                    activity,
+                    description,
+                    order_index,
+                    completed,
+                    user_review,
+                    places (
+                        name,
+                        category,
+                        rating,
+                        review_count,
+                        price,
+                        image_url,
+                        verified
+                    )
+                )
+            `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false });
           
           if (error) throw error;
           
           if (data) {
-            itineraries = data.map(row => ({
-              id: row.id,
-              title: row.title,
-              date: row.date,
-              mood: row.mood,
-              tags: row.tags || [],
-              items: row.items as ItineraryItem[],
-              likes: row.likes_count,
-              shared: row.is_public,
-              verified_community: row.verified_community
-            }));
+            itineraries = data.map((row: any) => {
+                // Map the joined relational data back to the flat ItineraryItem structure
+                const items = (row.itinerary_items || [])
+                    .sort((a: any, b: any) => a.order_index - b.order_index)
+                    .map((link: any) => ({
+                        time: link.time,
+                        activity: link.activity,
+                        description: link.description,
+                        completed: link.completed,
+                        userReview: link.user_review,
+                        // Flatten place data
+                        locationName: link.places?.name || 'Unknown',
+                        category: link.places?.category,
+                        rating: link.places?.rating,
+                        reviewCount: link.places?.review_count,
+                        price: link.places?.price,
+                        imageUrl: link.places?.image_url,
+                        verified: link.places?.verified
+                    }));
+
+                return {
+                    id: row.id,
+                    title: row.title,
+                    date: row.date,
+                    mood: row.mood,
+                    tags: row.tags || [],
+                    items: items,
+                    likes: row.likes_count,
+                    shared: row.is_public,
+                    verified_community: row.verified_community
+                };
+            });
           }
         }
       } catch (e) {
@@ -134,27 +237,62 @@ export const BackendService = {
   getCommunityItineraries: async (): Promise<Itinerary[]> => {
     if (isSupabaseConfigured()) {
       try {
-        // Fetch public itineraries with profile info
+        // Updated query to use relational tables
         const { data, error } = await supabase!
           .from('itineraries')
-          .select('*, profiles(name)')
+          .select(`
+            *,
+            profiles(name),
+            itinerary_items (
+                time,
+                activity,
+                description,
+                order_index,
+                places (
+                    name,
+                    category,
+                    rating,
+                    review_count,
+                    price,
+                    image_url,
+                    verified
+                )
+            )
+          `)
           .eq('is_public', true)
           .order('likes_count', { ascending: false })
           .limit(20);
 
         if (!error && data) {
-          return data.map(row => ({
-            id: row.id,
-            title: row.title,
-            date: row.date,
-            mood: row.mood,
-            tags: row.tags || [],
-            items: row.items as ItineraryItem[],
-            author: row.profiles?.name || 'Explorer',
-            likes: row.likes_count,
-            shared: true,
-            verified_community: row.verified_community
-          }));
+          return data.map((row: any) => {
+             const items = (row.itinerary_items || [])
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((link: any) => ({
+                    time: link.time,
+                    activity: link.activity,
+                    description: link.description,
+                    locationName: link.places?.name,
+                    category: link.places?.category,
+                    rating: link.places?.rating,
+                    reviewCount: link.places?.review_count,
+                    price: link.places?.price,
+                    imageUrl: link.places?.image_url,
+                    verified: link.places?.verified
+                }));
+
+             return {
+                id: row.id,
+                title: row.title,
+                date: row.date,
+                mood: row.mood,
+                tags: row.tags || [],
+                items: items,
+                author: row.profiles?.name || 'Explorer',
+                likes: row.likes_count,
+                shared: true,
+                verified_community: row.verified_community
+             };
+          });
         }
       } catch (e) {
         logError("Community fetch failed", e);
@@ -169,42 +307,17 @@ export const BackendService = {
   publishItinerary: async (itinerary: Itinerary, authorName: string): Promise<boolean> => {
     // 1. Local Update (Optimistic)
     try {
-        // Ensure ID is UUID before publishing
         const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
         const publishedItinerary = { ...itinerary, id: validId, shared: true, author: authorName };
-        
         const existing = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
         localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
     } catch(e) {}
 
     // 2. Supabase Update
     if (isSupabaseConfigured()) {
-      try {
-        const { data: { user } } = await supabase!.auth.getUser();
-        if (!user) return false;
-
-        const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
-
-        const { error } = await supabase!
-            .from('itineraries')
-            .upsert({
-                id: validId,
-                user_id: user.id,
-                title: itinerary.title,
-                date: itinerary.date,
-                mood: itinerary.mood,
-                tags: itinerary.tags,
-                items: itinerary.items,
-                is_public: true, 
-                likes_count: itinerary.likes || 0,
-                verified_community: itinerary.verified_community || false
-            });
-        
-        return !error;
-      } catch (e) {
-        logError("Publish failed", e);
-        return false;
-      }
+        // Reuse saveItinerary logic but ensure is_public is set to true
+        const itinToPublish = { ...itinerary, shared: true };
+        return await BackendService.saveItinerary(itinToPublish);
     }
     return true;
   },

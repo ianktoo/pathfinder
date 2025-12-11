@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, X, Cpu, Bot, ShieldCheck, AlertCircle, CheckCircle, Copy } from 'lucide-react';
+import { Settings, X, Cpu, Bot, ShieldCheck, AlertCircle, CheckCircle, Copy, Key } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ModelID } from '../../types';
 import { ModelRegistry } from '../../services/ai';
@@ -35,14 +35,17 @@ export const SettingsView = ({ onClose }: { onClose: () => void }) => {
         {/* System Status Section */}
         <div className="mb-8 bg-stone-50 dark:bg-neutral-950 rounded-2xl p-5 border border-stone-200 dark:border-neutral-800">
              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-4 flex items-center gap-2">
-                 <ShieldCheck className="w-4 h-4" /> System Status
+                 <ShieldCheck className="w-4 h-4" /> System Status (API Keys)
              </h3>
              <div className="space-y-3">
                  <div className="flex items-center justify-between">
-                     <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Gemini AI Key</span>
+                     <div className="flex flex-col">
+                        <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Gemini AI</span>
+                        <span className="text-[10px] text-stone-400 font-mono">env: API_KEY</span>
+                     </div>
                      {hasGeminiKey ? (
                          <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
-                             <CheckCircle className="w-3 h-3" /> Connected
+                             <CheckCircle className="w-3 h-3" /> Ready
                          </div>
                      ) : (
                          <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
@@ -51,10 +54,13 @@ export const SettingsView = ({ onClose }: { onClose: () => void }) => {
                      )}
                  </div>
                  <div className="flex items-center justify-between">
-                     <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Supabase Auth</span>
+                     <div className="flex flex-col">
+                        <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Supabase</span>
+                        <span className="text-[10px] text-stone-400 font-mono">env: VITE_SUPABASE_*</span>
+                     </div>
                      {hasSupabase ? (
                          <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
-                             <CheckCircle className="w-3 h-3" /> Connected
+                             <CheckCircle className="w-3 h-3" /> Ready
                          </div>
                      ) : (
                          <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
@@ -66,11 +72,13 @@ export const SettingsView = ({ onClose }: { onClose: () => void }) => {
              
              {(!hasGeminiKey || !hasSupabase) && (
                  <div className="mt-4 pt-4 border-t border-stone-200 dark:border-neutral-800">
-                     <p className="text-xs text-stone-500 mb-2">Create a <code>.env</code> file in your project root with the following keys:</p>
-                     <div className="bg-stone-200 dark:bg-neutral-900 p-2 rounded text-[10px] font-mono text-stone-600 dark:text-stone-400 overflow-x-auto whitespace-pre">
-                         API_KEY=...<br/>
-                         VITE_SUPABASE_URL=...<br/>
-                         VITE_SUPABASE_ANON_KEY=...
+                     <p className="text-xs text-stone-500 mb-2">
+                        Add these keys to a <code>.env</code> file in your project root to activate features.
+                     </p>
+                     <div className="bg-stone-200 dark:bg-neutral-900 p-3 rounded-lg text-[10px] font-mono text-stone-600 dark:text-stone-400 overflow-x-auto whitespace-pre border border-stone-300 dark:border-neutral-800">
+                         API_KEY=AIzaSy...<br/>
+                         VITE_SUPABASE_URL=https://...<br/>
+                         VITE_SUPABASE_ANON_KEY=eyJh...
                      </div>
                      <button onClick={copyEnvSnippet} className="mt-2 w-full py-1.5 bg-white dark:bg-neutral-800 border border-stone-200 dark:border-neutral-700 rounded text-xs font-bold flex items-center justify-center gap-2 hover:bg-stone-100 dark:hover:bg-neutral-700">
                          <Copy className="w-3 h-3" /> Copy Snippet
