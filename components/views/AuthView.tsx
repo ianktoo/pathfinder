@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Flame, Mail, Lock, KeyRound, ArrowRight, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -21,7 +21,18 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    let timer: any;
+    if (isLoading) {
+        timer = setTimeout(() => setShowSlowMessage(true), 2000);
+    } else {
+        setShowSlowMessage(false);
+    }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,6 +192,12 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
                 {mode === 'otp' && 'Send Magic Link'}
                 {mode === 'reset' && 'Send Reset Link'}
              </Button>
+             
+             {showSlowMessage && (
+                 <p className="text-center text-xs text-orange-600 font-bold mt-3 animate-pulse">
+                     Waking up database... nearly there!
+                 </p>
+             )}
           </div>
         </form>
 

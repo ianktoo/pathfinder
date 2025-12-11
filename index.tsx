@@ -73,7 +73,7 @@ function PathfinderApp() {
         console.warn("Initialization timed out, forcing UI render.");
         setIsLoading(false);
       }
-    }, 4000); // 4 seconds max loading time
+    }, 2500); // Reduced to 2.5 seconds max loading time
 
     return () => clearTimeout(safetyTimer);
   }, [isLoading]);
@@ -86,8 +86,9 @@ function PathfinderApp() {
         try {
             if (isSupabaseConfigured()) {
                 const sessionPromise = supabase!.auth.getSession();
+                // Reduced timeout to 2000ms for faster local fallback
                 const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Supabase timeout')), 3000)
+                    setTimeout(() => reject(new Error('Supabase timeout')), 2000)
                 );
 
                 try {
@@ -113,6 +114,8 @@ function PathfinderApp() {
                 } catch (err) {
                     console.warn("Backend session check issue, fallback to local.");
                 }
+            } else {
+                console.log("Supabase not configured, using local mode.");
             }
 
             // Fallback to Local Storage
@@ -219,7 +222,10 @@ function PathfinderApp() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950 gap-4">
         <Loader2 className="animate-spin text-orange-600 w-10 h-10" />
-        <p className="text-stone-400 font-bold text-sm animate-pulse">Initializing Pathfinder...</p>
+        <div className="flex flex-col items-center gap-1">
+            <p className="text-stone-400 font-bold text-sm animate-pulse">Initializing Pathfinder...</p>
+            <p className="text-stone-300 dark:text-stone-600 text-xs">Checking local cache & connections</p>
+        </div>
       </div>
     );
   }
