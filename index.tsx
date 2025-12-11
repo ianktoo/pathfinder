@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Loader2 } from 'lucide-react';
@@ -6,6 +5,8 @@ import { Loader2 } from 'lucide-react';
 import { UserProfile, Itinerary, ViewState } from './types';
 import { ModelRegistry } from './services/ai';
 import { BackendService } from './services/storage';
+import { supabase, isSupabaseConfigured } from './services/supabaseClient';
+import { AuthService } from './services/auth';
 
 import { LandingPage } from './components/views/LandingPage';
 import { AboutPage } from './components/views/AboutPage';
@@ -28,29 +29,78 @@ export default function App() {
   const [savedItineraries, setSavedItineraries] = useState<Itinerary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load initial data
+  // Load initial data & Auth Session
   useEffect(() => {
     ModelRegistry.init();
+    
+    // Load local itineraries (will eventually be replaced by Supabase fetch)
     const saved = BackendService.getSavedItineraries();
     setSavedItineraries(saved);
-    const cachedUser = BackendService.getUser();
-    if (cachedUser) {
-      setUser(cachedUser);
+
+    // Initial User Check (Local or Supabase)
+    const checkUser = async () => {
+        // 1. Try Supabase Session first
+        if (isSupabaseConfigured()) {
+            const { data: { session } } = await supabase!.auth.getSession();
+            if (session?.user) {
+                const profile = AuthService.mapUserToProfile(session.user);
+                // Merge with locally stored profile data (e.g. city/personality) if available
+                const localProfile = BackendService.getUser();
+                setUser({ ...profile, ...localProfile } as UserProfile);
+                setView('dashboard');
+                setIsLoading(false);
+                return;
+            }
+        }
+
+        // 2. Fallback to Local Storage (Offline/Demo mode)
+        const cachedUser = BackendService.getUser();
+        if (cachedUser) {
+            setUser(cachedUser);
+        }
+        setIsLoading(false);
+    };
+
+    checkUser();
+
+    // Listen for Auth Changes (Supabase)
+    let authListener: any = null;
+    if (isSupabaseConfigured()) {
+        const { data } = supabase!.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session?.user) {
+                const profile = AuthService.mapUserToProfile(session.user);
+                const localProfile = BackendService.getUser();
+                setUser({ ...profile, ...localProfile } as UserProfile);
+                setView('dashboard');
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setView('home');
+            }
+        });
+        authListener = data.subscription;
     }
-    setIsLoading(false);
+
+    return () => {
+        if (authListener) authListener.unsubscribe();
+    };
   }, []);
 
   const handleLogin = (partialUser: Partial<UserProfile>) => {
-    if (BackendService.getUser()) {
+    // This is called by AuthView after successful login logic
+    // We check if we have a full profile locally
+    const existing = BackendService.getUser();
+    if (existing || (partialUser.city && partialUser.personality)) {
        setView('dashboard');
     } else {
+       // New user needs onboarding details
        setView('onboarding');
     }
   };
 
   const handleOnboardingComplete = (profile: UserProfile) => {
-    setUser(profile);
-    BackendService.saveUser(profile);
+    const fullProfile = { ...user, ...profile };
+    setUser(fullProfile);
+    BackendService.saveUser(fullProfile);
     setView('dashboard');
   };
 
@@ -61,8 +111,9 @@ export default function App() {
     setView('dashboard');
   };
 
-  const handleLogout = () => {
-    BackendService.clearUser();
+  const handleLogout = async () => {
+    await AuthService.signOut(); // Signs out of Supabase
+    BackendService.clearUser(); // Clears local storage
     setUser(null);
     setView('home');
   };
