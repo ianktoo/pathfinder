@@ -50,6 +50,11 @@ To add OpenAI or Anthropic:
 1.  Create a new class `OpenAIProvider extends BaseLLM`.
 2.  Update `ModelRegistry` to allow selecting this new provider.
 
+## Deployment
+
+### Vercel
+This project includes a `vercel.json` file to handle Single Page Application (SPA) routing. This configuration rewrites all requests to `index.html`, preventing 404 errors when refreshing pages like `/dashboard`.
+
 ## Tech Stack
 *   **Framework**: React 19
 *   **Build**: Vite (Simulated ES Modules)
