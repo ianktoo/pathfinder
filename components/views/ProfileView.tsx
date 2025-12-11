@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, MapPin, Lock, Save, Trash2, ArrowLeft, Coffee, Star, Moon } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -18,6 +17,7 @@ export const ProfileView = ({ user, onBack, onUpdate, onLogout }: ProfileViewPro
   const [city, setCity] = useState(user.city);
   const [personality, setPersonality] = useState(user.personality);
   const [isSaved, setIsSaved] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const personalities = [
     { id: 'Adventurous', icon: MapPin },
@@ -26,11 +26,14 @@ export const ProfileView = ({ user, onBack, onUpdate, onLogout }: ProfileViewPro
     { id: 'Party', icon: Moon },
   ];
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setIsLoading(true);
     const updated = { ...user, name, city, personality };
-    BackendService.saveUser(updated);
+    // Await the backend save operation (Local Storage + Supabase)
+    await BackendService.saveUser(updated);
     onUpdate(updated);
     setIsSaved(true);
+    setIsLoading(false);
     setTimeout(() => setIsSaved(false), 2000);
   };
 
@@ -103,7 +106,7 @@ export const ProfileView = ({ user, onBack, onUpdate, onLogout }: ProfileViewPro
         </section>
 
         <div className="flex flex-col gap-4 pt-4">
-            <Button onClick={handleSave} icon={Save} className={isSaved ? "bg-green-600 hover:bg-green-700" : ""}>
+            <Button onClick={handleSave} isLoading={isLoading} icon={Save} className={isSaved ? "bg-green-600 hover:bg-green-700" : ""}>
                 {isSaved ? "Changes Saved!" : "Save Changes"}
             </Button>
             

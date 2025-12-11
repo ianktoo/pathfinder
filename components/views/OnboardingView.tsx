@@ -22,14 +22,11 @@ export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfi
     { id: 'Party', icon: Moon, desc: 'Nightlife & Socializing' },
   ];
 
-  // Try to auto-detect location on mount if permission exists
+  // Try to auto-detect location immediately on mount
   useEffect(() => {
-    if (step === 1 && navigator.permissions) {
-        navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-            if (result.state === 'granted') {
-                handleDetectLocation();
-            }
-        });
+    if (step === 1 && !city) {
+        // Attempt detection without forcing toast error
+        handleDetectLocation(true);
     }
   }, [step]);
 
@@ -38,17 +35,19 @@ export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfi
     else if (step === 2) onComplete({ name, email: '', city, personality });
   };
 
-  const handleDetectLocation = async () => {
+  const handleDetectLocation = async (silent = false) => {
     setDetecting(true);
     try {
       const pos = await LocationService.getCurrentPosition();
       const loc = await LocationService.getCityFromCoords(pos.coords.latitude, pos.coords.longitude);
       setCity(loc);
-      showToast("Location detected successfully!", "success");
+      if (!silent) {
+        showToast("Location detected successfully!", "success");
+      }
     } catch (e) {
-      // Don't show error toast on auto-detect fail, only manual click
-      if (e instanceof Error && e.message !== 'Geolocation is not supported by your browser') {
-         // Optional: log error
+      // Only show error if triggered manually (not silent)
+      if (!silent) {
+        showToast("Could not detect location. Please enter manually.", "error");
       }
     } finally {
       setDetecting(false);
@@ -83,7 +82,7 @@ export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfi
                     placeholder="City, Country" 
                 />
                 <button 
-                    onClick={handleDetectLocation}
+                    onClick={() => handleDetectLocation(false)}
                     disabled={detecting}
                     className="absolute top-0 right-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-orange-600 hover:text-orange-500 transition-colors disabled:opacity-50"
                 >

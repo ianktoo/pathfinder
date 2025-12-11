@@ -177,7 +177,7 @@ export const LandingPage = ({ onGetStarted, onNavigate }: LandingPageProps) => {
             <a href="#" className="hover:text-orange-600 transition-colors">Instagram</a>
           </div>
           <p className="text-stone-400 text-xs font-bold">
-            © 2024 Pathfinder Inc.
+            © 2025 Pathfinder Inc. | Made for Humans
           </p>
         </div>
       </footer>
