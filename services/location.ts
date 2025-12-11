@@ -1,3 +1,4 @@
+import { logError } from '../lib/utils';
 
 export const LocationService = {
   getCurrentPosition: (): Promise<GeolocationPosition> => {
@@ -20,9 +21,12 @@ export const LocationService = {
       
       // Try to find the most relevant city name from the address object
       const address = data.address;
-      return address.city || address.town || address.village || address.county || "Unknown Location";
+      const city = address.city || address.town || address.village || address.county || "Unknown Location";
+      const country = address.country_code ? address.country_code.toUpperCase() : "";
+      
+      return country ? `${city}, ${country}` : city;
     } catch (error) {
-      console.error("Failed to reverse geocode:", error);
+      logError("Failed to reverse geocode:", error);
       throw new Error("Could not determine city name");
     }
   }

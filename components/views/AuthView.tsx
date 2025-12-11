@@ -6,6 +6,7 @@ import { UserProfile } from '../../types';
 import { useToast } from '../ui/toast';
 import { AuthService } from '../../services/auth';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
+import { isDev, logError } from '../../lib/utils';
 
 interface AuthViewProps {
   onLogin: (user: Partial<UserProfile>) => void;
@@ -27,8 +28,11 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
     
     // Config Check
     if (!isSupabaseConfigured()) {
-        showToast('System Error: Backend not connected. Please check .env configuration.', 'error');
-        console.error("Supabase keys are missing.");
+        const msg = isDev 
+            ? 'System Error: Backend not connected. Please check .env configuration.' 
+            : 'Service Unavailable. Please try again later.';
+        showToast(msg, 'error');
+        logError("Supabase keys are missing.");
         return;
     }
 
@@ -64,15 +68,35 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
             }
         }
     } catch (error: any) {
-        console.error("Auth Error:", error);
-        // Supabase error messages are usually descriptive
-        showToast(error.message || 'Authentication failed. Please try again.', 'error');
+        logError("Auth Error:", error);
+        // In production, mask system errors (like missing keys), show user-friendly ones
+        const msg = (isDev || !error.message?.includes('VITE_SUPABASE'))
+            ? (error.message || 'Authentication failed. Please try again.')
+            : 'Authentication service unavailable.';
+        showToast(msg, 'error');
     } finally {
         setIsLoading(false);
     }
   };
 
   if (!isSupabaseConfigured()) {
+      if (!isDev) {
+         return (
+            <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-neutral-950 p-6">
+                <div className="max-w-md w-full text-center">
+                    <div className="w-16 h-16 bg-stone-200 dark:bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 text-stone-500">
+                        <Info className="w-8 h-8" />
+                    </div>
+                    <h2 className="text-xl font-bold text-stone-900 dark:text-white mb-2">Service Temporarily Unavailable</h2>
+                    <p className="text-stone-500 dark:text-stone-400 mb-6 text-sm">
+                        We are currently performing maintenance. Please check back shortly.
+                    </p>
+                    <Button onClick={onBack} variant="outline">Go Back Home</Button>
+                </div>
+            </div>
+         );
+      }
+
       return (
         <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-neutral-950 p-6">
             <div className="max-w-md w-full bg-white dark:bg-neutral-900 p-8 rounded-3xl border-2 border-red-100 dark:border-red-900/30 text-center">

@@ -1,4 +1,5 @@
 import { Itinerary, UserProfile } from "../types/index";
+import { logError } from "../lib/utils";
 
 // Mock data to seed the community view
 const MOCK_COMMUNITY_DATA: Itinerary[] = [
@@ -108,7 +109,7 @@ export const BackendService = {
       const filtered = existing.filter((i: Itinerary) => i.id !== itinerary.id);
       localStorage.setItem('saved_itineraries', JSON.stringify([itinerary, ...filtered]));
     } catch (e) {
-      console.error("Storage failed", e);
+      logError("Storage failed", e);
     }
   },
 
@@ -142,7 +143,7 @@ export const BackendService = {
         localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
         return true;
     } catch (e) {
-        console.error("Publish failed", e);
+        logError("Publish failed", e);
         return false;
     }
   },
