@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
@@ -38,6 +38,12 @@ function PathfinderApp() {
   
   const navigate = useNavigate();
   const location = useLocation();
+  const locationRef = useRef(location);
+
+  // Keep location ref in sync for event listeners
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
 
   // Navigation Adapter for existing components
   const handleNavigate = (view: ViewState) => {
@@ -155,7 +161,9 @@ function PathfinderApp() {
                 setSavedItineraries(saved);
                 
                 // Only navigate if we are currently on an auth page
-                if (location.pathname === '/' || location.pathname === '/auth') {
+                // Use ref to avoid stale closure
+                const currentPath = locationRef.current.pathname;
+                if (currentPath === '/' || currentPath === '/auth') {
                     navigate('/dashboard');
                 }
                 setIsLoading(false); 
@@ -176,16 +184,11 @@ function PathfinderApp() {
 
   const handleLogin = (partialUser: Partial<UserProfile>) => {
     // Optimistic Login: Don't wait for DB fetch.
-    // The AuthView has already authenticated via Supabase, so we trust the partial data.
-    // The background onAuthStateChange listener will eventually sync the full profile.
-    
     if (partialUser.name && (partialUser.city && partialUser.personality)) {
-       // We have enough data to treat as full user
        setUser(partialUser as UserProfile);
        navigate('/dashboard');
     } else {
-       // Missing profile data, send to onboarding
-       setUser(partialUser as UserProfile); // Set what we have
+       setUser(partialUser as UserProfile);
        navigate('/onboarding');
     }
   };
