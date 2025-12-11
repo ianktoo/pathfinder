@@ -1,7 +1,9 @@
-import React from 'react';
-import { Flame, ArrowRight, Cpu, Star, WifiOff, Menu, Zap } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Flame, ArrowRight, Cpu, Star, WifiOff, Zap, MapPin, Clock, Heart } from 'lucide-react';
 import { Button } from '../ui/button';
-import { ViewState } from '../../types';
+import { ViewState, Itinerary } from '../../types';
+import { PublicNavbar } from '../layout/PublicNavbar';
+import { BackendService } from '../../services/storage';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -9,26 +11,20 @@ interface LandingPageProps {
 }
 
 export const LandingPage = ({ onGetStarted, onNavigate }: LandingPageProps) => {
+  const [featured, setFeatured] = useState<Itinerary[]>([]);
+
+  useEffect(() => {
+    const loadFeatured = async () => {
+        const data = await BackendService.getCommunityItineraries();
+        setFeatured(data.slice(0, 3));
+    };
+    loadFeatured();
+  }, []);
+
   return (
     <div className="min-h-screen bg-stone-50 dark:bg-neutral-950 flex flex-col transition-colors duration-200">
-      <nav className="fixed w-full z-50 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-stone-200 dark:border-neutral-800">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
-          <div className="flex items-center gap-2 text-orange-600">
-            <Flame className="w-8 h-8 fill-orange-600" />
-            <span className="font-black text-2xl tracking-tighter text-stone-900 dark:text-white">PATHFINDER</span>
-          </div>
-          <div className="hidden md:flex gap-8 items-center">
-            <button onClick={() => onNavigate('about')} className="text-sm font-bold text-stone-600 hover:text-orange-600 dark:text-stone-300 transition-colors">About</button>
-            <button onClick={() => onNavigate('privacy')} className="text-sm font-bold text-stone-600 hover:text-orange-600 dark:text-stone-300 transition-colors">Privacy</button>
-            <button onClick={onGetStarted} className="bg-stone-900 text-white px-6 py-2.5 rounded-full font-bold hover:bg-orange-600 transition-colors dark:bg-white dark:text-stone-900 dark:hover:bg-orange-500 dark:hover:text-white">
-              Sign In
-            </button>
-          </div>
-          <button onClick={onGetStarted} className="md:hidden text-stone-900 dark:text-white">
-            <Menu className="w-6 h-6" />
-          </button>
-        </div>
-      </nav>
+      
+      <PublicNavbar onNavigate={onNavigate} onSignIn={onGetStarted} transparent={true} />
 
       <div className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -59,33 +55,94 @@ export const LandingPage = ({ onGetStarted, onNavigate }: LandingPageProps) => {
         </main>
       </div>
 
-      <section className="px-6 py-20 bg-white dark:bg-neutral-900">
+      {/* Featured Itineraries */}
+      <section className="px-6 py-20 bg-stone-100 dark:bg-neutral-900">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="group p-8 bg-stone-50 dark:bg-neutral-800 rounded-3xl border-2 border-transparent hover:border-orange-500 transition-all hover:shadow-2xl hover:shadow-orange-500/10">
-              <div className="w-14 h-14 bg-orange-100 dark:bg-orange-900/30 rounded-2xl flex items-center justify-center text-orange-600 dark:text-orange-500 mb-6 group-hover:scale-110 transition-transform">
+            <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+                <div>
+                    <h2 className="text-3xl md:text-4xl font-black text-stone-900 dark:text-white mb-2">Trending Adventures</h2>
+                    <p className="text-stone-500 dark:text-stone-400">See what the community is exploring this weekend.</p>
+                </div>
+                <button onClick={() => onNavigate('community')} className="text-orange-600 font-bold uppercase tracking-wider text-sm hover:text-orange-500 flex items-center gap-2">
+                    View All <ArrowRight className="w-4 h-4" />
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {featured.map((it) => (
+                    <div key={it.id} className="group cursor-pointer" onClick={() => onNavigate('community')}>
+                        <div className="relative h-[400px] mb-4 overflow-hidden rounded-3xl">
+                            <img 
+                                src={it.items[0]?.imageUrl || `https://source.unsplash.com/random/800x1200?${it.mood}`} 
+                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                                alt={it.title}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                            
+                            <div className="absolute top-6 left-6">
+                                <span className="bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-full uppercase tracking-wider">
+                                    {it.mood}
+                                </span>
+                            </div>
+
+                            <div className="absolute bottom-6 left-6 right-6">
+                                <h3 className="text-2xl font-black text-white leading-tight mb-2 group-hover:underline decoration-orange-500 underline-offset-4">{it.title}</h3>
+                                <div className="flex items-center gap-4 text-white/80 text-sm font-bold">
+                                    <div className="flex items-center gap-1">
+                                        <Clock className="w-4 h-4 text-orange-500" />
+                                        <span>{it.tags.find(t => t.includes('Day')) || 'Full Day'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <MapPin className="w-4 h-4 text-orange-500" />
+                                        <span>{it.items.length} Stops</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex justify-between items-center px-2">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-full bg-stone-200 dark:bg-neutral-800 flex items-center justify-center text-xs font-black text-stone-500">
+                                    {it.author ? it.author[0] : 'P'}
+                                </div>
+                                <span className="text-sm font-bold text-stone-600 dark:text-stone-400">{it.author || 'Pathfinder'}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-xs font-bold text-stone-400">
+                                <Heart className="w-4 h-4 fill-stone-300 dark:fill-neutral-700" /> {it.likes || 0}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+      </section>
+
+      <section className="px-6 py-20 bg-white dark:bg-neutral-950">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-20">
+            <div className="group">
+              <div className="w-16 h-16 bg-orange-50 dark:bg-orange-900/10 rounded-3xl flex items-center justify-center text-orange-600 dark:text-orange-500 mb-8 group-hover:scale-110 transition-transform duration-300">
                 <Cpu className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-black text-stone-900 dark:text-white mb-3">Hyper-Local AI</h3>
-              <p className="text-stone-500 dark:text-stone-400 font-medium">
-                Our engine doesn't just list places; it crafts a narrative. Based on your mood, budget, and vibe.
+              <h3 className="text-3xl font-black text-stone-900 dark:text-white mb-4 tracking-tight">Hyper-Local AI</h3>
+              <p className="text-lg text-stone-500 dark:text-stone-400 leading-relaxed">
+                Our engine doesn't just list places; it crafts a narrative. Based on your mood, budget, and real-time vibe.
               </p>
             </div>
-            <div className="group p-8 bg-stone-50 dark:bg-neutral-800 rounded-3xl border-2 border-transparent hover:border-orange-500 transition-all hover:shadow-2xl hover:shadow-orange-500/10">
-              <div className="w-14 h-14 bg-yellow-100 dark:bg-yellow-900/30 rounded-2xl flex items-center justify-center text-yellow-600 dark:text-yellow-500 mb-6 group-hover:scale-110 transition-transform">
+            <div className="group">
+              <div className="w-16 h-16 bg-yellow-50 dark:bg-yellow-900/10 rounded-3xl flex items-center justify-center text-yellow-600 dark:text-yellow-500 mb-8 group-hover:scale-110 transition-transform duration-300">
                 <Star className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-black text-stone-900 dark:text-white mb-3">Yelp Intelligence</h3>
-              <p className="text-stone-500 dark:text-stone-400 font-medium">
+              <h3 className="text-3xl font-black text-stone-900 dark:text-white mb-4 tracking-tight">Yelp Intelligence</h3>
+              <p className="text-lg text-stone-500 dark:text-stone-400 leading-relaxed">
                 We verify every spot against the Yelp API to ensure open hours, high ratings, and correct pricing.
               </p>
             </div>
-            <div className="group p-8 bg-stone-50 dark:bg-neutral-800 rounded-3xl border-2 border-transparent hover:border-orange-500 transition-all hover:shadow-2xl hover:shadow-orange-500/10">
-              <div className="w-14 h-14 bg-stone-200 dark:bg-neutral-700 rounded-2xl flex items-center justify-center text-stone-600 dark:text-stone-300 mb-6 group-hover:scale-110 transition-transform">
+            <div className="group">
+              <div className="w-16 h-16 bg-stone-100 dark:bg-neutral-900 rounded-3xl flex items-center justify-center text-stone-600 dark:text-stone-300 mb-8 group-hover:scale-110 transition-transform duration-300">
                 <WifiOff className="w-8 h-8" />
               </div>
-              <h3 className="text-2xl font-black text-stone-900 dark:text-white mb-3">Offline Resilient</h3>
-              <p className="text-stone-500 dark:text-stone-400 font-medium">
+              <h3 className="text-3xl font-black text-stone-900 dark:text-white mb-4 tracking-tight">Offline Resilient</h3>
+              <p className="text-lg text-stone-500 dark:text-stone-400 leading-relaxed">
                 Subway tunnel? Remote hike? Your itinerary is cached locally so the adventure never stops.
               </p>
             </div>

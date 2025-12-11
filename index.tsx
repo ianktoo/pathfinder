@@ -29,14 +29,18 @@ export default function App() {
   const [savedItineraries, setSavedItineraries] = useState<Itinerary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Initialize Theme
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
+
   // Load initial data & Auth Session
   useEffect(() => {
     ModelRegistry.init();
     
-    // Load local itineraries (will eventually be replaced by Supabase fetch)
-    const saved = BackendService.getSavedItineraries();
-    setSavedItineraries(saved);
-
     // Initial User Check (Local or Supabase)
     const checkUser = async () => {
         // 1. Try Supabase Session first
@@ -44,9 +48,12 @@ export default function App() {
             const { data: { session } } = await supabase!.auth.getSession();
             if (session?.user) {
                 const profile = AuthService.mapUserToProfile(session.user);
-                // Merge with locally stored profile data (e.g. city/personality) if available
-                const localProfile = BackendService.getUser();
+                const localProfile = await BackendService.getUser();
                 setUser({ ...profile, ...localProfile } as UserProfile);
+                
+                const saved = await BackendService.getSavedItineraries();
+                setSavedItineraries(saved);
+                
                 setView('dashboard');
                 setIsLoading(false);
                 return;
@@ -54,9 +61,11 @@ export default function App() {
         }
 
         // 2. Fallback to Local Storage (Offline/Demo mode)
-        const cachedUser = BackendService.getUser();
+        const cachedUser = await BackendService.getUser();
         if (cachedUser) {
             setUser(cachedUser);
+            const saved = await BackendService.getSavedItineraries();
+            setSavedItineraries(saved);
         }
         setIsLoading(false);
     };
@@ -66,14 +75,19 @@ export default function App() {
     // Listen for Auth Changes (Supabase)
     let authListener: any = null;
     if (isSupabaseConfigured()) {
-        const { data } = supabase!.auth.onAuthStateChange((event, session) => {
+        const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session?.user) {
                 const profile = AuthService.mapUserToProfile(session.user);
-                const localProfile = BackendService.getUser();
+                const localProfile = await BackendService.getUser();
                 setUser({ ...profile, ...localProfile } as UserProfile);
+                
+                const saved = await BackendService.getSavedItineraries();
+                setSavedItineraries(saved);
+                
                 setView('dashboard');
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
+                setSavedItineraries([]);
                 setView('home');
             }
         });
@@ -85,52 +99,50 @@ export default function App() {
     };
   }, []);
 
-  const handleLogin = (partialUser: Partial<UserProfile>) => {
-    // This is called by AuthView after successful login logic
-    // We check if we have a full profile locally
-    const existing = BackendService.getUser();
+  const handleLogin = async (partialUser: Partial<UserProfile>) => {
+    const existing = await BackendService.getUser();
     if (existing || (partialUser.city && partialUser.personality)) {
        setView('dashboard');
     } else {
-       // New user needs onboarding details
        setView('onboarding');
     }
   };
 
-  const handleOnboardingComplete = (profile: UserProfile) => {
+  const handleOnboardingComplete = async (profile: UserProfile) => {
     const fullProfile = { ...user, ...profile };
     setUser(fullProfile);
-    BackendService.saveUser(fullProfile);
+    await BackendService.saveUser(fullProfile);
     setView('dashboard');
   };
 
-  const handleSaveItinerary = (itinerary: Itinerary) => {
-    const newStats = [itinerary, ...savedItineraries];
-    setSavedItineraries(newStats);
-    BackendService.saveItinerary(itinerary);
+  const handleSaveItinerary = async (itinerary: Itinerary) => {
+    await BackendService.saveItinerary(itinerary);
+    const saved = await BackendService.getSavedItineraries();
+    setSavedItineraries(saved);
     setView('dashboard');
   };
 
   const handleLogout = async () => {
-    await AuthService.signOut(); // Signs out of Supabase
-    BackendService.clearUser(); // Clears local storage
+    await AuthService.signOut(); 
+    await BackendService.clearUser();
     setUser(null);
+    setSavedItineraries([]);
     setView('home');
   };
 
-  const handleCloneItinerary = (itinerary: Itinerary) => {
+  const handleCloneItinerary = async (itinerary: Itinerary) => {
     const cloned = { ...itinerary, id: Date.now().toString(), title: `(Copy) ${itinerary.title}` };
-    handleSaveItinerary(cloned);
+    await handleSaveItinerary(cloned);
   };
   
-  const handleRemixItinerary = (itinerary: Itinerary) => {
+  const handleRemixItinerary = async (itinerary: Itinerary) => {
     const remixed = { 
         ...itinerary, 
         id: Date.now().toString(), 
         title: `(Remix) ${itinerary.title}`,
         shared: false
     };
-    handleSaveItinerary(remixed);
+    await handleSaveItinerary(remixed);
     alert("Itinerary remixed! You can now find it in your library.");
   };
 
@@ -152,8 +164,8 @@ export default function App() {
         {/* Router Logic */}
         {(() => {
             if (view === 'home') return <LandingPage onGetStarted={() => user ? setView('dashboard') : setView('auth')} onNavigate={setView} />;
-            if (view === 'about') return <AboutPage onBack={() => setView('home')} />;
-            if (view === 'privacy') return <PrivacyPage onBack={() => setView('home')} />;
+            if (view === 'about') return <AboutPage onNavigate={setView} onSignIn={() => user ? setView('dashboard') : setView('auth')} />;
+            if (view === 'privacy') return <PrivacyPage onNavigate={setView} onSignIn={() => user ? setView('dashboard') : setView('auth')} />;
             if (view === 'auth') return <AuthView onLogin={handleLogin} onBack={() => setView('home')} />;
             if (view === 'onboarding') return <OnboardingView onComplete={handleOnboardingComplete} />;
 
