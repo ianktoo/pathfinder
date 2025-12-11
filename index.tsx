@@ -39,11 +39,16 @@ function PathfinderApp() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationRef = useRef(location);
+  // CRITICAL: Keep track of latest user state for event listeners
+  const userRef = useRef(user);
 
-  // Keep location ref in sync for event listeners
   useEffect(() => {
     locationRef.current = location;
   }, [location]);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Navigation Adapter for existing components
   const handleNavigate = (view: ViewState) => {
@@ -64,7 +69,6 @@ function PathfinderApp() {
   // Initialize Theme
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
-    // Check local storage or system preference
     if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
     } else {
@@ -79,7 +83,7 @@ function PathfinderApp() {
         console.warn("Initialization timed out, forcing UI render.");
         setIsLoading(false);
       }
-    }, 2500); // Reduced to 2.5 seconds max loading time
+    }, 2500); 
 
     return () => clearTimeout(safetyTimer);
   }, [isLoading]);
@@ -92,7 +96,6 @@ function PathfinderApp() {
         try {
             if (isSupabaseConfigured()) {
                 const sessionPromise = supabase!.auth.getSession();
-                // Reduced timeout to 2000ms for faster local fallback
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Supabase timeout')), 2000)
                 );
@@ -109,7 +112,6 @@ function PathfinderApp() {
                         setUser(finalUser);
                         BackendService.getSavedItineraries().then(setSavedItineraries);
                         
-                        // Redirect logic if on root/auth and logged in
                         if (location.pathname === '/' || location.pathname === '/auth') {
                             navigate('/dashboard', { replace: true });
                         }
@@ -137,7 +139,6 @@ function PathfinderApp() {
         } catch (e) {
             console.error("Session check failed", e);
         } finally {
-            // Force loading off if we reached here
             if (isLoading) setIsLoading(false);
         }
     };
@@ -148,29 +149,34 @@ function PathfinderApp() {
     let authListener: any = null;
     if (isSupabaseConfigured()) {
         const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
-            if (event === 'SIGNED_IN' && session?.user) {
-                // OPTIMIZATION: If we already have a user in state that matches this session, skip fetching
-                // This prevents the double-loading effect when 'handleLogin' has already run
-                if (user && user.email === session.user.email) return;
+            try {
+                if (event === 'SIGNED_IN' && session?.user) {
+                    // CRITICAL FIX: Use ref to check current user state to avoid stale closure loop
+                    const currentUser = userRef.current;
+                    if (currentUser && currentUser.email === session.user.email) {
+                        return; // Already logged in, ignore
+                    }
 
-                const profile = AuthService.mapUserToProfile(session.user);
-                const localProfile = await BackendService.getUser();
-                setUser({ ...profile, ...localProfile } as UserProfile);
-                
-                const saved = await BackendService.getSavedItineraries();
-                setSavedItineraries(saved);
-                
-                // Only navigate if we are currently on an auth page
-                // Use ref to avoid stale closure
-                const currentPath = locationRef.current.pathname;
-                if (currentPath === '/' || currentPath === '/auth') {
-                    navigate('/dashboard');
+                    const profile = AuthService.mapUserToProfile(session.user);
+                    const localProfile = await BackendService.getUser();
+                    setUser({ ...profile, ...localProfile } as UserProfile);
+                    
+                    const saved = await BackendService.getSavedItineraries();
+                    setSavedItineraries(saved);
+                    
+                    const currentPath = locationRef.current.pathname;
+                    if (currentPath === '/' || currentPath === '/auth') {
+                        navigate('/dashboard');
+                    }
+                    setIsLoading(false); 
+                } else if (event === 'SIGNED_OUT') {
+                    setUser(null);
+                    setSavedItineraries([]);
+                    navigate('/');
+                    setIsLoading(false);
                 }
-                setIsLoading(false); 
-            } else if (event === 'SIGNED_OUT') {
-                setUser(null);
-                setSavedItineraries([]);
-                navigate('/');
+            } catch (error) {
+                console.error("Auth state change error:", error);
                 setIsLoading(false);
             }
         });
@@ -183,7 +189,7 @@ function PathfinderApp() {
   }, []);
 
   const handleLogin = (partialUser: Partial<UserProfile>) => {
-    // Optimistic Login: Don't wait for DB fetch.
+    // Optimistic Login
     if (partialUser.name && (partialUser.city && partialUser.personality)) {
        setUser(partialUser as UserProfile);
        navigate('/dashboard');
@@ -208,7 +214,9 @@ function PathfinderApp() {
   };
 
   const handleLogout = async () => {
-    await AuthService.signOut(); 
+    try {
+        await AuthService.signOut();
+    } catch (e) { console.error(e); } 
     await BackendService.clearUser();
     setUser(null);
     setSavedItineraries([]);
@@ -235,7 +243,6 @@ function PathfinderApp() {
       setUser(updatedUser);
   };
 
-  // Scroll to top on route change
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location]);
@@ -246,7 +253,6 @@ function PathfinderApp() {
         <Loader2 className="animate-spin text-orange-600 w-10 h-10" />
         <div className="flex flex-col items-center gap-1">
             <p className="text-stone-400 font-bold text-sm animate-pulse">Initializing Pathfinder...</p>
-            <p className="text-stone-300 dark:text-stone-600 text-xs">Checking local cache & connections</p>
         </div>
       </div>
     );
@@ -256,13 +262,11 @@ function PathfinderApp() {
     <ToastProvider>
         <CookieConsent />
         <Routes>
-            {/* Public Routes */}
             <Route path="/" element={<LandingPage onGetStarted={() => user ? navigate('/dashboard') : navigate('/auth')} onNavigate={handleNavigate} />} />
             <Route path="/about" element={<AboutPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
             <Route path="/privacy" element={<PrivacyPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
             <Route path="/auth" element={<AuthView onLogin={handleLogin} onBack={() => navigate('/')} />} />
 
-            {/* Protected Routes */}
             <Route path="/onboarding" element={
                 <RequireAuth user={user} isLoading={isLoading}>
                     <OnboardingView onComplete={handleOnboardingComplete} />

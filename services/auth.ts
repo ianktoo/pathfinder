@@ -1,6 +1,26 @@
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 import { UserProfile } from '../types';
 
+const AUTH_TIMEOUT_MS = 15000; // 15 seconds max wait time
+
+// Helper to prevent infinite hangs
+const promiseWithTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+  let timeoutId: any;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise
+  ]);
+};
+
 export const AuthService = {
   
   // Helper to ensure Supabase is ready
@@ -12,72 +32,94 @@ export const AuthService = {
 
   signInWithPassword: async (email: string, password: string) => {
     AuthService.checkConfig();
-    const { data, error } = await supabase!.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) throw error;
-    return data;
+    return promiseWithTimeout(
+        (async () => {
+            const { data, error } = await supabase!.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            return data;
+        })(),
+        AUTH_TIMEOUT_MS,
+        'Sign In'
+    );
   },
 
   signUp: async (email: string, password: string, name?: string) => {
     AuthService.checkConfig();
-    const { data, error } = await supabase!.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: name,
-        },
-      },
-    });
-    if (error) throw error;
-    return data;
+    return promiseWithTimeout(
+        (async () => {
+            const { data, error } = await supabase!.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                full_name: name,
+                },
+            },
+            });
+            if (error) throw error;
+            return data;
+        })(),
+        AUTH_TIMEOUT_MS,
+        'Sign Up'
+    );
   },
 
   signInWithOtp: async (email: string) => {
     AuthService.checkConfig();
-    const { data, error } = await supabase!.auth.signInWithOtp({
-      email,
-      options: {
-        // Redirect back to the app after clicking the magic link
-        emailRedirectTo: window.location.origin, 
-      },
-    });
-    if (error) throw error;
-    return data;
+    return promiseWithTimeout(
+        (async () => {
+            const { data, error } = await supabase!.auth.signInWithOtp({
+            email,
+            options: {
+                emailRedirectTo: window.location.origin, 
+            },
+            });
+            if (error) throw error;
+            return data;
+        })(),
+        AUTH_TIMEOUT_MS,
+        'OTP Request'
+    );
   },
 
   resetPasswordForEmail: async (email: string) => {
     AuthService.checkConfig();
-    const { data, error } = await supabase!.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-    if (error) throw error;
-    return data;
+    return promiseWithTimeout(
+        (async () => {
+            const { data, error } = await supabase!.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/reset-password`,
+            });
+            if (error) throw error;
+            return data;
+        })(),
+        AUTH_TIMEOUT_MS,
+        'Password Reset'
+    );
   },
 
   signOut: async () => {
     if (isSupabaseConfigured()) {
-      const { error } = await supabase!.auth.signOut();
+      // Short timeout for sign out
+      const { error } = await promiseWithTimeout(supabase!.auth.signOut(), 3000, 'Sign Out') as any;
       if (error) throw error;
     }
   },
 
   getCurrentUser: async () => {
     if (!isSupabaseConfigured()) return null;
-    const { data: { user } } = await supabase!.auth.getUser();
-    return user;
+    try {
+        const { data: { user } } = await promiseWithTimeout(supabase!.auth.getUser(), 5000, 'Get User') as any;
+        return user;
+    } catch (e) {
+        return null;
+    }
   },
 
-  // Map Supabase User object to our internal UserProfile type
   mapUserToProfile: (supabaseUser: any): Partial<UserProfile> => {
     if (!supabaseUser) return {};
     return {
       email: supabaseUser.email,
       name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'Explorer',
-      // City and Personality would typically be fetched from the 'profiles' table
-      // For now, we return partial data
     };
   }
 };

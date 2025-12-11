@@ -26,18 +26,31 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
 
   useEffect(() => {
     let timer: any;
+    let failsafe: any;
+    
     if (isLoading) {
+        // Show "Waking up..." after 2s
         timer = setTimeout(() => setShowSlowMessage(true), 2000);
+        // Force stop loading after 18s (Service times out at 15s)
+        failsafe = setTimeout(() => {
+            if (isLoading) {
+                setIsLoading(false);
+                setShowSlowMessage(false);
+                showToast("Connection timed out. Please check your internet or try again.", "error");
+            }
+        }, 18000);
     } else {
         setShowSlowMessage(false);
     }
-    return () => clearTimeout(timer);
+    return () => {
+        clearTimeout(timer);
+        clearTimeout(failsafe);
+    };
   }, [isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Config Check
     if (!isSupabaseConfigured()) {
         const msg = isDev 
             ? 'System Error: Backend not connected. Please check .env configuration.' 
@@ -80,7 +93,6 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
         }
     } catch (error: any) {
         logError("Auth Error:", error);
-        // In production, mask system errors (like missing keys), show user-friendly ones
         const msg = (isDev || !error.message?.includes('VITE_SUPABASE'))
             ? (error.message || 'Authentication failed. Please try again.')
             : 'Authentication service unavailable.';
