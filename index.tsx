@@ -46,23 +46,28 @@ export default function App() {
         try {
             // 1. Try Supabase Session first
             if (isSupabaseConfigured()) {
-                const { data: { session }, error } = await supabase!.auth.getSession();
+                // Use Promise.race to prevent hanging if Supabase client is misconfigured/blocked
+                const sessionPromise = supabase!.auth.getSession();
+                const { data: { session }, error } = await Promise.race([
+                    sessionPromise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000))
+                ]) as any;
                 
                 if (session?.user && !error) {
                     const profile = AuthService.mapUserToProfile(session.user);
-                    // Merge with locally stored profile data (e.g. city/personality) if available
-                    // We await BackendService.getUser() which tries Supabase then Local
+                    
+                    // Merge with locally stored profile data
                     const fullProfile = await BackendService.getUser();
                     
                     // Prefer DB profile, fallback to Auth metadata
-                    setUser(fullProfile || profile as UserProfile);
+                    const finalUser = (fullProfile || profile) as UserProfile;
+                    setUser(finalUser);
                     
-                    // Fetch saved itineraries for user
-                    const saved = await BackendService.getSavedItineraries();
-                    setSavedItineraries(saved);
+                    // Fetch saved itineraries for user (don't await strictly to unblock UI)
+                    BackendService.getSavedItineraries().then(setSavedItineraries);
                     
                     setView('dashboard');
-                    return; // Exit early, finally block handles loading state
+                    return; // Exit early
                 }
             }
 
@@ -75,7 +80,7 @@ export default function App() {
                 setView('dashboard');
             }
         } catch (e) {
-            console.error("Session check failed", e);
+            console.error("Session check failed or timed out", e);
         } finally {
             setIsLoading(false);
         }
@@ -96,10 +101,12 @@ export default function App() {
                 setSavedItineraries(saved);
                 
                 setView('dashboard');
+                setIsLoading(false); // Ensure loading is cleared on auth change
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setSavedItineraries([]);
                 setView('home');
+                setIsLoading(false);
             }
         });
         authListener = data.subscription;
@@ -166,8 +173,9 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950">
-        <Loader2 className="animate-spin text-orange-600 w-8 h-8" />
+      <div className="flex flex-col items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950 gap-4">
+        <Loader2 className="animate-spin text-orange-600 w-10 h-10" />
+        <p className="text-stone-400 font-bold text-sm animate-pulse">Initializing Pathfinder...</p>
       </div>
     );
   }

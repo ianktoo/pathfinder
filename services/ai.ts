@@ -57,12 +57,19 @@ export const ModelRegistry = {
   
   getProvider: (): BaseLLM => {
     const apiKey = process.env.API_KEY || '';
+    if (!apiKey) {
+      console.warn("Gemini API Key is missing. Check .env file.");
+    }
     return new GeminiProvider(apiKey, ModelRegistry.currentModelId);
   },
 
   setModel: (id: ModelID) => {
     ModelRegistry.currentModelId = id;
     localStorage.setItem('preferred_model', id);
+  },
+
+  hasApiKey: (): boolean => {
+    return !!process.env.API_KEY && process.env.API_KEY.length > 0;
   },
 
   init: () => {

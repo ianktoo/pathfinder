@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Settings, X, Cpu, Bot } from 'lucide-react';
+import { Settings, X, Cpu, Bot, ShieldCheck, AlertCircle, CheckCircle, Copy } from 'lucide-react';
 import { Button } from '../ui/button';
 import { ModelID } from '../../types';
 import { ModelRegistry } from '../../services/ai';
+import { isSupabaseConfigured } from '../../services/supabaseClient';
 
 export const SettingsView = ({ onClose }: { onClose: () => void }) => {
   const [model, setModel] = useState<ModelID>(ModelRegistry.currentModelId);
@@ -12,14 +13,70 @@ export const SettingsView = ({ onClose }: { onClose: () => void }) => {
     onClose();
   };
 
+  const hasGeminiKey = ModelRegistry.hasApiKey();
+  const hasSupabase = isSupabaseConfigured();
+
+  const copyEnvSnippet = () => {
+      const text = `API_KEY=your_gemini_api_key_here\nVITE_SUPABASE_URL=your_project_url\nVITE_SUPABASE_ANON_KEY=your_anon_key`;
+      navigator.clipboard.writeText(text);
+      alert("Config snippet copied to clipboard!");
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-3xl p-8 animate-in zoom-in-95 border border-stone-200 dark:border-neutral-800 shadow-2xl">
+      <div className="bg-white dark:bg-neutral-900 w-full max-w-md rounded-3xl p-8 animate-in zoom-in-95 border border-stone-200 dark:border-neutral-800 shadow-2xl overflow-y-auto max-h-[90vh]">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-black flex items-center gap-2 text-stone-900 dark:text-white uppercase">
             <Settings className="w-6 h-6" /> Engine Settings
           </h2>
           <button onClick={onClose}><X className="w-6 h-6 text-stone-400" /></button>
+        </div>
+
+        {/* System Status Section */}
+        <div className="mb-8 bg-stone-50 dark:bg-neutral-950 rounded-2xl p-5 border border-stone-200 dark:border-neutral-800">
+             <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-4 flex items-center gap-2">
+                 <ShieldCheck className="w-4 h-4" /> System Status
+             </h3>
+             <div className="space-y-3">
+                 <div className="flex items-center justify-between">
+                     <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Gemini AI Key</span>
+                     {hasGeminiKey ? (
+                         <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
+                             <CheckCircle className="w-3 h-3" /> Connected
+                         </div>
+                     ) : (
+                         <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                             <AlertCircle className="w-3 h-3" /> Missing
+                         </div>
+                     )}
+                 </div>
+                 <div className="flex items-center justify-between">
+                     <span className="text-sm font-medium text-stone-700 dark:text-stone-300">Supabase Auth</span>
+                     {hasSupabase ? (
+                         <div className="flex items-center gap-1.5 text-xs font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded">
+                             <CheckCircle className="w-3 h-3" /> Connected
+                         </div>
+                     ) : (
+                         <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                             <AlertCircle className="w-3 h-3" /> Missing
+                         </div>
+                     )}
+                 </div>
+             </div>
+             
+             {(!hasGeminiKey || !hasSupabase) && (
+                 <div className="mt-4 pt-4 border-t border-stone-200 dark:border-neutral-800">
+                     <p className="text-xs text-stone-500 mb-2">Create a <code>.env</code> file in your project root with the following keys:</p>
+                     <div className="bg-stone-200 dark:bg-neutral-900 p-2 rounded text-[10px] font-mono text-stone-600 dark:text-stone-400 overflow-x-auto whitespace-pre">
+                         API_KEY=...<br/>
+                         VITE_SUPABASE_URL=...<br/>
+                         VITE_SUPABASE_ANON_KEY=...
+                     </div>
+                     <button onClick={copyEnvSnippet} className="mt-2 w-full py-1.5 bg-white dark:bg-neutral-800 border border-stone-200 dark:border-neutral-700 rounded text-xs font-bold flex items-center justify-center gap-2 hover:bg-stone-100 dark:hover:bg-neutral-700">
+                         <Copy className="w-3 h-3" /> Copy Snippet
+                     </button>
+                 </div>
+             )}
         </div>
         
         <div className="mb-8">
