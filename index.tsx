@@ -25,7 +25,13 @@ import { CookieConsent } from './components/ui/cookie-consent';
 
 // Wrapper to handle auth protection
 const RequireAuth = ({ children, user, isLoading }: { children?: React.ReactNode, user: UserProfile | null, isLoading: boolean }) => {
-    if (isLoading) return null; // Let the main loader handle this
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950 gap-4">
+                <Loader2 className="animate-spin text-orange-600 w-10 h-10" />
+            </div>
+        );
+    }
     if (!user) return <Navigate to="/auth" replace />;
     return <>{children}</>;
 };
@@ -39,18 +45,12 @@ function PathfinderApp() {
   const navigate = useNavigate();
   const location = useLocation();
   const locationRef = useRef(location);
-  // CRITICAL: Keep track of latest user state for event listeners
-  const userRef = useRef(user);
 
   useEffect(() => {
     locationRef.current = location;
   }, [location]);
 
-  useEffect(() => {
-    userRef.current = user;
-  }, [user]);
-
-  // Navigation Adapter for existing components
+  // Navigation Adapter
   const handleNavigate = (view: ViewState) => {
     switch(view) {
         case 'home': navigate('/'); break;
@@ -66,7 +66,7 @@ function PathfinderApp() {
     }
   };
 
-  // Initialize Theme
+  // Theme Init
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -76,107 +76,83 @@ function PathfinderApp() {
     }
   }, []);
 
-  // Failsafe Timeout
-  useEffect(() => {
-    const safetyTimer = setTimeout(() => {
-      if (isLoading) {
-        console.warn("Initialization timed out, forcing UI render.");
-        setIsLoading(false);
-      }
-    }, 2500); 
-
-    return () => clearTimeout(safetyTimer);
-  }, [isLoading]);
-
-  // Load initial data & Auth Session
+  // Initialize & Auth Listener
   useEffect(() => {
     ModelRegistry.init();
     
-    const checkUser = async () => {
+    // 1. Initial Load Check
+    const initializeApp = async () => {
         try {
-            if (isSupabaseConfigured()) {
-                const sessionPromise = supabase!.auth.getSession();
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Supabase timeout')), 2000)
-                );
-
-                try {
-                    // @ts-ignore
-                    const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
-                    
-                    if (session?.user && !error) {
-                        const profile = AuthService.mapUserToProfile(session.user);
-                        const fullProfile = await BackendService.getUser();
-                        const finalUser = (fullProfile || profile) as UserProfile;
-                        
-                        setUser(finalUser);
-                        BackendService.getSavedItineraries().then(setSavedItineraries);
-                        
-                        if (location.pathname === '/' || location.pathname === '/auth') {
-                            navigate('/dashboard', { replace: true });
-                        }
-                        
-                        setIsLoading(false);
-                        return; 
-                    }
-                } catch (err) {
-                    console.warn("Backend session check issue, fallback to local.");
-                }
-            } else {
-                console.log("Supabase not configured, using local mode.");
-            }
-
-            // Fallback to Local Storage
+            // Check Local Storage first for immediate render
             const cachedUser = await BackendService.getUser();
             if (cachedUser) {
                 setUser(cachedUser);
-                const saved = await BackendService.getSavedItineraries();
-                setSavedItineraries(saved);
-                if (location.pathname === '/' || location.pathname === '/auth') {
-                    navigate('/dashboard', { replace: true });
+                BackendService.getSavedItineraries().then(setSavedItineraries);
+            }
+
+            if (isSupabaseConfigured()) {
+                const { data: { session } } = await supabase!.auth.getSession();
+                if (session?.user) {
+                    const basicProfile = AuthService.mapUserToProfile(session.user);
+                    // Merge session data with cache to ensure freshness
+                    const merged = { ...cachedUser, ...basicProfile } as UserProfile;
+                    setUser(merged);
+                    
+                    // Route protection logic
+                    if (location.pathname === '/' || location.pathname === '/auth') {
+                        navigate('/dashboard', { replace: true });
+                    }
+                    
+                    // Hydrate full data in background
+                    BackendService.getUser().then(full => {
+                        if (full) setUser(prev => ({ ...prev, ...full } as UserProfile));
+                    });
+                    BackendService.getSavedItineraries().then(setSavedItineraries);
                 }
             }
         } catch (e) {
-            console.error("Session check failed", e);
+            console.error("Init error", e);
         } finally {
-            if (isLoading) setIsLoading(false);
+            setIsLoading(false);
         }
     };
 
-    checkUser();
+    initializeApp();
 
-    // Listen for Auth Changes
+    // 2. Real-time Auth Listener
     let authListener: any = null;
     if (isSupabaseConfigured()) {
         const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
-            try {
-                if (event === 'SIGNED_IN' && session?.user) {
-                    // CRITICAL FIX: Use ref to check current user state to avoid stale closure loop
-                    const currentUser = userRef.current;
-                    if (currentUser && currentUser.email === session.user.email) {
-                        return; // Already logged in, ignore
-                    }
+            if (event === 'SIGNED_IN' && session?.user) {
+                // OPTIMISTIC UPDATE: Don't wait for DB
+                const basicProfile = AuthService.mapUserToProfile(session.user);
+                
+                setUser(prev => {
+                    // Only update if actually different to avoid re-renders
+                    if (prev?.email === basicProfile.email) return prev;
+                    return { ...prev, ...basicProfile } as UserProfile;
+                });
 
-                    const profile = AuthService.mapUserToProfile(session.user);
-                    const localProfile = await BackendService.getUser();
-                    setUser({ ...profile, ...localProfile } as UserProfile);
-                    
-                    const saved = await BackendService.getSavedItineraries();
-                    setSavedItineraries(saved);
-                    
-                    const currentPath = locationRef.current.pathname;
-                    if (currentPath === '/' || currentPath === '/auth') {
-                        navigate('/dashboard');
-                    }
-                    setIsLoading(false); 
-                } else if (event === 'SIGNED_OUT') {
-                    setUser(null);
-                    setSavedItineraries([]);
-                    navigate('/');
-                    setIsLoading(false);
+                // Immediate redirect if on auth pages
+                const currentPath = locationRef.current.pathname;
+                if (currentPath === '/' || currentPath === '/auth') {
+                    navigate('/dashboard');
                 }
-            } catch (error) {
-                console.error("Auth state change error:", error);
+                
+                setIsLoading(false);
+
+                // Background Sync
+                const fullProfile = await BackendService.getUser();
+                if (fullProfile) {
+                     setUser(fullProfile);
+                }
+                const saved = await BackendService.getSavedItineraries();
+                setSavedItineraries(saved);
+
+            } else if (event === 'SIGNED_OUT') {
+                setUser(null);
+                setSavedItineraries([]);
+                navigate('/');
                 setIsLoading(false);
             }
         });
@@ -187,17 +163,6 @@ function PathfinderApp() {
         if (authListener) authListener.unsubscribe();
     };
   }, []);
-
-  const handleLogin = (partialUser: Partial<UserProfile>) => {
-    // Optimistic Login
-    if (partialUser.name && (partialUser.city && partialUser.personality)) {
-       setUser(partialUser as UserProfile);
-       navigate('/dashboard');
-    } else {
-       setUser(partialUser as UserProfile);
-       navigate('/onboarding');
-    }
-  };
 
   const handleOnboardingComplete = async (profile: UserProfile) => {
     const fullProfile = { ...user, ...profile };
@@ -214,18 +179,19 @@ function PathfinderApp() {
   };
 
   const handleLogout = async () => {
-    try {
-        await AuthService.signOut();
-    } catch (e) { console.error(e); } 
+    setIsLoading(true);
+    await AuthService.signOut();
     await BackendService.clearUser();
     setUser(null);
     setSavedItineraries([]);
     navigate('/');
+    setIsLoading(false);
   };
 
   const handleCloneItinerary = async (itinerary: Itinerary) => {
-    const cloned = { ...itinerary, id: crypto.randomUUID(), title: `(Copy) ${itinerary.title}` };
+    const cloned = { ...itinerary, id: crypto.randomUUID(), title: `(Copy) ${itinerary.title}`, shared: false, bookmarked: false };
     await handleSaveItinerary(cloned);
+    alert("Itinerary added to your library!");
   };
   
   const handleRemixItinerary = async (itinerary: Itinerary) => {
@@ -233,7 +199,8 @@ function PathfinderApp() {
         ...itinerary, 
         id: crypto.randomUUID(), 
         title: `(Remix) ${itinerary.title}`,
-        shared: false
+        shared: false,
+        bookmarked: false
     };
     await handleSaveItinerary(remixed);
     alert("Itinerary remixed! You can now find it in your library.");
@@ -243,17 +210,17 @@ function PathfinderApp() {
       setUser(updatedUser);
   };
 
+  // If loading takes too long, just show the app (failsafe)
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location]);
+      const timer = setTimeout(() => setIsLoading(false), 3000);
+      return () => clearTimeout(timer);
+  }, []);
 
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-stone-50 dark:bg-neutral-950 gap-4">
         <Loader2 className="animate-spin text-orange-600 w-10 h-10" />
-        <div className="flex flex-col items-center gap-1">
-            <p className="text-stone-400 font-bold text-sm animate-pulse">Initializing Pathfinder...</p>
-        </div>
+        <p className="text-stone-400 font-bold text-sm animate-pulse">Starting Pathfinder...</p>
       </div>
     );
   }
@@ -265,7 +232,9 @@ function PathfinderApp() {
             <Route path="/" element={<LandingPage onGetStarted={() => user ? navigate('/dashboard') : navigate('/auth')} onNavigate={handleNavigate} />} />
             <Route path="/about" element={<AboutPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
             <Route path="/privacy" element={<PrivacyPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
-            <Route path="/auth" element={<AuthView onLogin={handleLogin} onBack={() => navigate('/')} />} />
+            
+            {/* AuthView no longer needs onLogin prop for logic, just for optimistic local updates if desired, but we rely on listener now */}
+            <Route path="/auth" element={<AuthView onBack={() => navigate('/')} />} />
 
             <Route path="/onboarding" element={
                 <RequireAuth user={user} isLoading={isLoading}>

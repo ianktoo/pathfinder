@@ -1,6 +1,7 @@
 import { Itinerary, UserProfile, ItineraryItem } from "../types/index";
 import { logError } from "../lib/utils";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
+import { AuthService } from "./auth";
 
 // Mock data for fallback/demo
 const MOCK_COMMUNITY_DATA: Itinerary[] = [
@@ -47,7 +48,6 @@ export const BackendService = {
       const itineraryToSave = { ...itinerary, id: validId };
 
       // 1. Always save to Local Storage (Cache/Offline)
-      // Note: Local storage keeps the denormalized JSON structure for ease of offline use
       const existing = JSON.parse(localStorage.getItem('saved_itineraries') || '[]');
       const filtered = existing.filter((i: Itinerary) => i.id !== itinerary.id);
       localStorage.setItem('saved_itineraries', JSON.stringify([itineraryToSave, ...filtered]));
@@ -78,7 +78,6 @@ export const BackendService = {
           if (itineraryToSave.items && itineraryToSave.items.length > 0) {
             
             // 1. Upsert Places (Businesses)
-            // We use locationName as a key constraint. In a real app, use Yelp ID.
             for (const item of itineraryToSave.items) {
                await supabase!
                  .from('places')
@@ -100,7 +99,6 @@ export const BackendService = {
               .eq('itinerary_id', validId);
 
             // 3. Link Places to Itinerary via itinerary_items
-            // Fetch the place IDs we just upserted.
             const newLinks = [];
             for (let i = 0; i < itineraryToSave.items.length; i++) {
                 const item = itineraryToSave.items[i];
@@ -152,7 +150,6 @@ export const BackendService = {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
           // Fetch Itineraries with joined Items and Places
-          // This relational query reconstructs the full object
           const { data, error } = await supabase!
             .from('itineraries')
             .select(`
@@ -178,11 +175,8 @@ export const BackendService = {
             .eq('user_id', user.id)
             .order('created_at', { ascending: false });
           
-          if (error) throw error;
-          
-          if (data) {
+          if (!error && data) {
             itineraries = data.map((row: any) => {
-                // Map the joined relational data back to the flat ItineraryItem structure
                 const items = (row.itinerary_items || [])
                     .sort((a: any, b: any) => a.order_index - b.order_index)
                     .map((link: any) => ({
@@ -191,7 +185,6 @@ export const BackendService = {
                         description: link.description,
                         completed: link.completed,
                         userReview: link.user_review,
-                        // Flatten place data
                         locationName: link.places?.name || 'Unknown',
                         category: link.places?.category,
                         rating: link.places?.rating,
@@ -221,7 +214,7 @@ export const BackendService = {
       }
     }
 
-    // 2. Merge/Fallback to Local Storage if Supabase returned nothing or failed
+    // 2. Merge/Fallback to Local Storage
     if (itineraries.length === 0) {
       try {
         const local = JSON.parse(localStorage.getItem('saved_itineraries') || '[]');
@@ -237,7 +230,6 @@ export const BackendService = {
   getCommunityItineraries: async (): Promise<Itinerary[]> => {
     if (isSupabaseConfigured()) {
       try {
-        // Relational query for community feed
         const { data, error } = await supabase!
           .from('itineraries')
           .select(`
@@ -299,13 +291,11 @@ export const BackendService = {
       }
     }
 
-    // Fallback
     const localCommunity = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
     return [...localCommunity, ...MOCK_COMMUNITY_DATA];
   },
 
   publishItinerary: async (itinerary: Itinerary, authorName: string): Promise<boolean> => {
-    // 1. Local Update (Optimistic)
     try {
         const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
         const publishedItinerary = { ...itinerary, id: validId, shared: true, author: authorName };
@@ -313,7 +303,6 @@ export const BackendService = {
         localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
     } catch(e) {}
 
-    // 2. Supabase Update
     if (isSupabaseConfigured()) {
         const itinToPublish = { ...itinerary, shared: true };
         return await BackendService.saveItinerary(itinToPublish);
@@ -325,22 +314,26 @@ export const BackendService = {
 
   getUser: async (): Promise<UserProfile | null> => {
     let profile: UserProfile | null = null;
+    let sessionUser = null;
 
     if (isSupabaseConfigured()) {
         try {
-            // Use getSession (local check) instead of getUser (remote check) for speed
+            // 1. Get Session first
             const { data: { session } } = await supabase!.auth.getSession();
             
             if (session?.user) {
-                // Fetch profile with strict timeout (2s) to prevent "sleeping db" hang
+                sessionUser = session.user;
+
+                // 2. Fetch profile with strict timeout
                 const profilePromise = supabase!
                     .from('profiles')
                     .select('*')
                     .eq('id', session.user.id)
                     .single();
                 
+                // Only wait 1 second for DB. If it's sleeping, we use session data.
                 const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('DB Timeout')), 2000)
+                    setTimeout(() => reject(new Error('DB Timeout')), 1000)
                 );
 
                 const { data } = await Promise.race([profilePromise, timeoutPromise]) as any;
@@ -355,11 +348,25 @@ export const BackendService = {
                 }
             }
         } catch (e) {
-            logError("User fetch failed or timed out", e);
+            // DB fail is okay, we fall back to session or local
         }
     }
 
-    // Fallback to local
+    // 3. Fallback: Construct profile from Session Data if DB failed
+    if (!profile && sessionUser) {
+        const partial = AuthService.mapUserToProfile(sessionUser);
+        // Try to pull city/personality from local storage to fill gaps
+        const cached = localStorage.getItem('user_profile');
+        const cachedObj = cached ? JSON.parse(cached) : {};
+        
+        profile = {
+            ...partial,
+            city: cachedObj.city || '',
+            personality: cachedObj.personality || 'Adventurous'
+        } as UserProfile;
+    }
+
+    // 4. Final Fallback: Local Storage only
     if (!profile) {
         const cached = localStorage.getItem('user_profile');
         if (cached) return JSON.parse(cached);
@@ -369,10 +376,8 @@ export const BackendService = {
   },
 
   saveUser: async (user: UserProfile) => {
-    // Local Cache
     localStorage.setItem('user_profile', JSON.stringify(user));
 
-    // Supabase Sync
     if (isSupabaseConfigured()) {
         try {
             const { data: { session } } = await supabase!.auth.getSession();
