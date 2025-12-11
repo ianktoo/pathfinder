@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter, Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import { UserProfile, Itinerary, ViewState } from './types';
@@ -22,29 +23,57 @@ import { ProfileView } from './components/views/ProfileView';
 import { ToastProvider } from './components/ui/toast';
 import { CookieConsent } from './components/ui/cookie-consent';
 
-export default function App() {
+// Wrapper to handle auth protection
+const RequireAuth = ({ children, user, isLoading }: { children: React.ReactNode, user: UserProfile | null, isLoading: boolean }) => {
+    if (isLoading) return null; // Let the main loader handle this
+    if (!user) return <Navigate to="/auth" replace />;
+    return <>{children}</>;
+};
+
+function PathfinderApp() {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [view, setView] = useState<ViewState>('home');
   const [showSettings, setShowSettings] = useState(false);
   const [savedItineraries, setSavedItineraries] = useState<Itinerary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Navigation Adapter for existing components
+  const handleNavigate = (view: ViewState) => {
+    switch(view) {
+        case 'home': navigate('/'); break;
+        case 'auth': navigate('/auth'); break;
+        case 'dashboard': navigate('/dashboard'); break;
+        case 'create': navigate('/create'); break;
+        case 'community': navigate('/community'); break;
+        case 'profile': navigate('/profile'); break;
+        case 'about': navigate('/about'); break;
+        case 'privacy': navigate('/privacy'); break;
+        case 'onboarding': navigate('/onboarding'); break;
+        default: navigate('/');
+    }
+  };
 
   // Initialize Theme
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
+    // Check local storage or system preference
     if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
   }, []);
 
-  // Failsafe Timeout: Prevents getting stuck on loading screen if backend hangs
+  // Failsafe Timeout
   useEffect(() => {
     const safetyTimer = setTimeout(() => {
       if (isLoading) {
         console.warn("Initialization timed out, forcing UI render.");
         setIsLoading(false);
       }
-    }, 4000); // 4 seconds max load time
+    }, 4000); 
 
     return () => clearTimeout(safetyTimer);
   }, [isLoading]);
@@ -53,12 +82,9 @@ export default function App() {
   useEffect(() => {
     ModelRegistry.init();
     
-    // Initial User Check (Local or Supabase)
     const checkUser = async () => {
         try {
-            // 1. Try Supabase Session first
             if (isSupabaseConfigured()) {
-                // Using Promise.race to prevent Supabase hang from blocking the UI forever
                 const sessionPromise = supabase!.auth.getSession();
                 const timeoutPromise = new Promise((_, reject) => 
                     setTimeout(() => reject(new Error('Supabase timeout')), 3000)
@@ -70,45 +96,45 @@ export default function App() {
                     
                     if (session?.user && !error) {
                         const profile = AuthService.mapUserToProfile(session.user);
-                        
-                        // Merge with locally stored profile data
                         const fullProfile = await BackendService.getUser();
-                        
-                        // Prefer DB profile, fallback to Auth metadata
                         const finalUser = (fullProfile || profile) as UserProfile;
-                        setUser(finalUser);
                         
-                        // Fetch saved itineraries for user
+                        setUser(finalUser);
                         BackendService.getSavedItineraries().then(setSavedItineraries);
                         
-                        setView('dashboard');
+                        // Redirect logic if on root/auth and logged in
+                        if (location.pathname === '/' || location.pathname === '/auth') {
+                            navigate('/dashboard', { replace: true });
+                        }
+                        
                         setIsLoading(false);
                         return; 
                     }
                 } catch (err) {
-                    console.warn("Backend session check timed out or failed, falling back to local.");
+                    console.warn("Backend session check issue, fallback to local.");
                 }
             }
 
-            // 2. Fallback to Local Storage (Offline/Demo mode)
+            // Fallback to Local Storage
             const cachedUser = await BackendService.getUser();
             if (cachedUser) {
                 setUser(cachedUser);
                 const saved = await BackendService.getSavedItineraries();
                 setSavedItineraries(saved);
-                setView('dashboard');
+                if (location.pathname === '/' || location.pathname === '/auth') {
+                    navigate('/dashboard', { replace: true });
+                }
             }
         } catch (e) {
             console.error("Session check failed", e);
         } finally {
-            // Ensure we stop loading unless the safety timer already did it
             if (isLoading) setIsLoading(false);
         }
     };
 
     checkUser();
 
-    // Listen for Auth Changes (Supabase)
+    // Listen for Auth Changes
     let authListener: any = null;
     if (isSupabaseConfigured()) {
         const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
@@ -120,12 +146,12 @@ export default function App() {
                 const saved = await BackendService.getSavedItineraries();
                 setSavedItineraries(saved);
                 
-                setView('dashboard');
+                navigate('/dashboard');
                 setIsLoading(false); 
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
                 setSavedItineraries([]);
-                setView('home');
+                navigate('/');
                 setIsLoading(false);
             }
         });
@@ -138,13 +164,11 @@ export default function App() {
   }, []);
 
   const handleLogin = async (partialUser: Partial<UserProfile>) => {
-    // This is called by AuthView after successful login logic
     const existing = await BackendService.getUser();
     if (existing || (partialUser.city && partialUser.personality)) {
-       setView('dashboard');
+       navigate('/dashboard');
     } else {
-       // New user needs onboarding details
-       setView('onboarding');
+       navigate('/onboarding');
     }
   };
 
@@ -152,15 +176,14 @@ export default function App() {
     const fullProfile = { ...user, ...profile };
     setUser(fullProfile);
     await BackendService.saveUser(fullProfile);
-    setView('dashboard');
+    navigate('/dashboard');
   };
 
   const handleSaveItinerary = async (itinerary: Itinerary) => {
     await BackendService.saveItinerary(itinerary);
-    // Refresh list
     const saved = await BackendService.getSavedItineraries();
     setSavedItineraries(saved);
-    setView('dashboard');
+    navigate('/dashboard');
   };
 
   const handleLogout = async () => {
@@ -168,7 +191,7 @@ export default function App() {
     await BackendService.clearUser();
     setUser(null);
     setSavedItineraries([]);
-    setView('home');
+    navigate('/');
   };
 
   const handleCloneItinerary = async (itinerary: Itinerary) => {
@@ -203,44 +226,58 @@ export default function App() {
   return (
     <ToastProvider>
         <CookieConsent />
-        {/* Router Logic */}
-        {(() => {
-            if (view === 'home') return <LandingPage onGetStarted={() => user ? setView('dashboard') : setView('auth')} onNavigate={setView} />;
-            if (view === 'about') return <AboutPage onNavigate={setView} onSignIn={() => user ? setView('dashboard') : setView('auth')} />;
-            if (view === 'privacy') return <PrivacyPage onNavigate={setView} onSignIn={() => user ? setView('dashboard') : setView('auth')} />;
-            if (view === 'auth') return <AuthView onLogin={handleLogin} onBack={() => setView('home')} />;
-            if (view === 'onboarding') return <OnboardingView onComplete={handleOnboardingComplete} />;
+        <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<LandingPage onGetStarted={() => user ? navigate('/dashboard') : navigate('/auth')} onNavigate={handleNavigate} />} />
+            <Route path="/about" element={<AboutPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
+            <Route path="/privacy" element={<PrivacyPage onNavigate={handleNavigate} onSignIn={() => user ? navigate('/dashboard') : navigate('/auth')} />} />
+            <Route path="/auth" element={<AuthView onLogin={handleLogin} onBack={() => navigate('/')} />} />
 
-            // Protected Routes
-            if (user) {
-                return (
-                <>
-                    {view === 'create' ? (
-                    <CreateItineraryView user={user} onClose={() => setView('dashboard')} onSave={handleSaveItinerary} />
-                    ) : view === 'community' ? (
-                        <CommunityView onBack={() => setView('dashboard')} onClone={handleCloneItinerary} />
-                    ) : view === 'profile' ? (
-                        <ProfileView user={user} onBack={() => setView('dashboard')} onUpdate={handleUpdateProfile} onLogout={handleLogout} />
-                    ) : (
+            {/* Protected Routes */}
+            <Route path="/onboarding" element={
+                <RequireAuth user={user} isLoading={isLoading}>
+                    <OnboardingView onComplete={handleOnboardingComplete} />
+                </RequireAuth>
+            } />
+            <Route path="/dashboard" element={
+                <RequireAuth user={user} isLoading={isLoading}>
                     <Dashboard 
-                        user={user} 
+                        user={user!} 
                         savedItineraries={savedItineraries} 
-                        onCreateClick={() => setView('create')}
+                        onCreateClick={() => navigate('/create')}
                         onLogout={handleLogout}
                         onOpenSettings={() => setShowSettings(true)}
-                        onNavigate={setView}
+                        onNavigate={handleNavigate}
                         onRemix={handleRemixItinerary}
                     />
-                    )}
-                    {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
-                </>
-                );
-            }
-            return <div />;
-        })()}
+                </RequireAuth>
+            } />
+            <Route path="/create" element={
+                <RequireAuth user={user} isLoading={isLoading}>
+                    <CreateItineraryView user={user!} onClose={() => navigate('/dashboard')} onSave={handleSaveItinerary} />
+                </RequireAuth>
+            } />
+            <Route path="/community" element={
+                <RequireAuth user={user} isLoading={isLoading}>
+                    <CommunityView onBack={() => navigate('/dashboard')} onClone={handleCloneItinerary} />
+                </RequireAuth>
+            } />
+            <Route path="/profile" element={
+                <RequireAuth user={user} isLoading={isLoading}>
+                    <ProfileView user={user!} onBack={() => navigate('/dashboard')} onUpdate={handleUpdateProfile} onLogout={handleLogout} />
+                </RequireAuth>
+            } />
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        
+        {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
     </ToastProvider>
   );
 }
 
 const root = createRoot(document.getElementById('root')!);
-root.render(<App />);
+root.render(
+    <BrowserRouter>
+        <PathfinderApp />
+    </BrowserRouter>
+);
