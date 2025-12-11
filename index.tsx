@@ -43,33 +43,42 @@ export default function App() {
     
     // Initial User Check (Local or Supabase)
     const checkUser = async () => {
-        // 1. Try Supabase Session first
-        if (isSupabaseConfigured()) {
-            const { data: { session } } = await supabase!.auth.getSession();
-            if (session?.user) {
-                const profile = AuthService.mapUserToProfile(session.user);
-                // Merge with locally stored profile data (e.g. city/personality) if available
-                const localProfile = await BackendService.getUser();
-                setUser({ ...profile, ...localProfile } as UserProfile);
+        try {
+            // 1. Try Supabase Session first
+            if (isSupabaseConfigured()) {
+                const { data: { session }, error } = await supabase!.auth.getSession();
                 
-                // Fetch saved itineraries for user
+                if (session?.user && !error) {
+                    const profile = AuthService.mapUserToProfile(session.user);
+                    // Merge with locally stored profile data (e.g. city/personality) if available
+                    // We await BackendService.getUser() which tries Supabase then Local
+                    const fullProfile = await BackendService.getUser();
+                    
+                    // Prefer DB profile, fallback to Auth metadata
+                    setUser(fullProfile || profile as UserProfile);
+                    
+                    // Fetch saved itineraries for user
+                    const saved = await BackendService.getSavedItineraries();
+                    setSavedItineraries(saved);
+                    
+                    setView('dashboard');
+                    return; // Exit early, finally block handles loading state
+                }
+            }
+
+            // 2. Fallback to Local Storage (Offline/Demo mode)
+            const cachedUser = await BackendService.getUser();
+            if (cachedUser) {
+                setUser(cachedUser);
                 const saved = await BackendService.getSavedItineraries();
                 setSavedItineraries(saved);
-                
                 setView('dashboard');
-                setIsLoading(false);
-                return;
             }
+        } catch (e) {
+            console.error("Session check failed", e);
+        } finally {
+            setIsLoading(false);
         }
-
-        // 2. Fallback to Local Storage (Offline/Demo mode)
-        const cachedUser = await BackendService.getUser();
-        if (cachedUser) {
-            setUser(cachedUser);
-            const saved = await BackendService.getSavedItineraries();
-            setSavedItineraries(saved);
-        }
-        setIsLoading(false);
     };
 
     checkUser();
@@ -102,10 +111,12 @@ export default function App() {
   }, []);
 
   const handleLogin = async (partialUser: Partial<UserProfile>) => {
+    // This is called by AuthView after successful login logic
     const existing = await BackendService.getUser();
     if (existing || (partialUser.city && partialUser.personality)) {
        setView('dashboard');
     } else {
+       // New user needs onboarding details
        setView('onboarding');
     }
   };
@@ -119,6 +130,7 @@ export default function App() {
 
   const handleSaveItinerary = async (itinerary: Itinerary) => {
     await BackendService.saveItinerary(itinerary);
+    // Refresh list
     const saved = await BackendService.getSavedItineraries();
     setSavedItineraries(saved);
     setView('dashboard');
