@@ -24,7 +24,7 @@ import { ToastProvider } from './components/ui/toast';
 import { CookieConsent } from './components/ui/cookie-consent';
 
 // Wrapper to handle auth protection
-const RequireAuth = ({ children, user, isLoading }: { children: React.ReactNode, user: UserProfile | null, isLoading: boolean }) => {
+const RequireAuth = ({ children, user, isLoading }: { children?: React.ReactNode, user: UserProfile | null, isLoading: boolean }) => {
     if (isLoading) return null; // Let the main loader handle this
     if (!user) return <Navigate to="/auth" replace />;
     return <>{children}</>;
@@ -73,7 +73,7 @@ function PathfinderApp() {
         console.warn("Initialization timed out, forcing UI render.");
         setIsLoading(false);
       }
-    }, 4000); 
+    }, 4000); // 4 seconds max loading time
 
     return () => clearTimeout(safetyTimer);
   }, [isLoading]);
@@ -128,6 +128,7 @@ function PathfinderApp() {
         } catch (e) {
             console.error("Session check failed", e);
         } finally {
+            // Force loading off if we reached here
             if (isLoading) setIsLoading(false);
         }
     };
