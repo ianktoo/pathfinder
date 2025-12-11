@@ -69,7 +69,13 @@ export const ModelRegistry = {
   },
 
   hasApiKey: (): boolean => {
-    return !!process.env.API_KEY && process.env.API_KEY.length > 0;
+    // Check both standard process.env and Vite's import.meta.env
+    const envKey = process.env.API_KEY;
+    // @ts-ignore
+    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.API_KEY : undefined;
+    
+    const key = envKey || viteKey;
+    return !!key && key.length > 0;
   },
 
   init: () => {

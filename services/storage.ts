@@ -78,8 +78,7 @@ export const BackendService = {
           if (itineraryToSave.items && itineraryToSave.items.length > 0) {
             
             // 1. Upsert Places (Businesses)
-            // We use locationName + category as a rough unique key for this MVP since we lack real Yelp IDs.
-            // In a real app, we'd use the Yelp Business ID.
+            // We use locationName as a key constraint. In a real app, use Yelp ID.
             for (const item of itineraryToSave.items) {
                await supabase!
                  .from('places')
@@ -91,22 +90,22 @@ export const BackendService = {
                     price: item.price,
                     image_url: item.imageUrl,
                     verified: item.verified
-                 }, { onConflict: 'name' }); // Assuming name is unique constraint for MVP
+                 }, { onConflict: 'name' }); 
             }
 
-            // 2. Clear existing links for this itinerary to prevent duplicates on update
+            // 2. Clear existing items for this itinerary to prevent duplicates
             await supabase!
               .from('itinerary_items')
               .delete()
               .eq('itinerary_id', validId);
 
             // 3. Link Places to Itinerary via itinerary_items
-            // We need to fetch the place IDs we just upserted/found.
-            // Optimized: We iterate again. In production, we'd use a single stored procedure.
+            // Fetch the place IDs we just upserted.
             const newLinks = [];
             for (let i = 0; i < itineraryToSave.items.length; i++) {
                 const item = itineraryToSave.items[i];
                 
+                // Get the place ID for this item
                 const { data: placeData } = await supabase!
                     .from('places')
                     .select('id')
@@ -122,7 +121,7 @@ export const BackendService = {
                         description: item.description,
                         order_index: i,
                         completed: item.completed || false,
-                        user_review: item.userReview // JSONB column in the join table
+                        user_review: item.userReview // JSONB for the review itself
                     });
                 }
             }
@@ -153,7 +152,7 @@ export const BackendService = {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
           // Fetch Itineraries with joined Items and Places
-          // We assume relational structure: itineraries -> itinerary_items -> places
+          // This relational query reconstructs the full object
           const { data, error } = await supabase!
             .from('itineraries')
             .select(`
@@ -211,7 +210,8 @@ export const BackendService = {
                     items: items,
                     likes: row.likes_count,
                     shared: row.is_public,
-                    verified_community: row.verified_community
+                    verified_community: row.verified_community,
+                    bookmarked: false 
                 };
             });
           }
@@ -237,7 +237,7 @@ export const BackendService = {
   getCommunityItineraries: async (): Promise<Itinerary[]> => {
     if (isSupabaseConfigured()) {
       try {
-        // Updated query to use relational tables
+        // Relational query for community feed
         const { data, error } = await supabase!
           .from('itineraries')
           .select(`
@@ -315,7 +315,6 @@ export const BackendService = {
 
     // 2. Supabase Update
     if (isSupabaseConfigured()) {
-        // Reuse saveItinerary logic but ensure is_public is set to true
         const itinToPublish = { ...itinerary, shared: true };
         return await BackendService.saveItinerary(itinToPublish);
     }

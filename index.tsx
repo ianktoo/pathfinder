@@ -58,25 +58,35 @@ export default function App() {
         try {
             // 1. Try Supabase Session first
             if (isSupabaseConfigured()) {
-                const { data: { session }, error } = await supabase!.auth.getSession();
-                
-                if (session?.user && !error) {
-                    const profile = AuthService.mapUserToProfile(session.user);
+                // Using Promise.race to prevent Supabase hang from blocking the UI forever
+                const sessionPromise = supabase!.auth.getSession();
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Supabase timeout')), 3000)
+                );
+
+                try {
+                    // @ts-ignore
+                    const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
                     
-                    // Merge with locally stored profile data
-                    const fullProfile = await BackendService.getUser();
-                    
-                    // Prefer DB profile, fallback to Auth metadata
-                    const finalUser = (fullProfile || profile) as UserProfile;
-                    setUser(finalUser);
-                    
-                    // Fetch saved itineraries for user
-                    // We don't await this to unblock the UI faster
-                    BackendService.getSavedItineraries().then(setSavedItineraries);
-                    
-                    setView('dashboard');
-                    setIsLoading(false);
-                    return; 
+                    if (session?.user && !error) {
+                        const profile = AuthService.mapUserToProfile(session.user);
+                        
+                        // Merge with locally stored profile data
+                        const fullProfile = await BackendService.getUser();
+                        
+                        // Prefer DB profile, fallback to Auth metadata
+                        const finalUser = (fullProfile || profile) as UserProfile;
+                        setUser(finalUser);
+                        
+                        // Fetch saved itineraries for user
+                        BackendService.getSavedItineraries().then(setSavedItineraries);
+                        
+                        setView('dashboard');
+                        setIsLoading(false);
+                        return; 
+                    }
+                } catch (err) {
+                    console.warn("Backend session check timed out or failed, falling back to local.");
                 }
             }
 
@@ -92,7 +102,7 @@ export default function App() {
             console.error("Session check failed", e);
         } finally {
             // Ensure we stop loading unless the safety timer already did it
-            setIsLoading(false);
+            if (isLoading) setIsLoading(false);
         }
     };
 

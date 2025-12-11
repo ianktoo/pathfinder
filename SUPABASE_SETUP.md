@@ -19,7 +19,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
 ## 2. Database Schema (SQL)
 
-Run the following SQL scripts in your Supabase **SQL Editor** to create the necessary tables.
+Run the following SQL scripts in your Supabase **SQL Editor** to create the necessary tables. This structure normalizes **Places** (Businesses) so they can be shared across multiple **Itineraries**.
 
 ### A. Create Tables
 
@@ -49,7 +49,7 @@ create table public.places (
 );
 
 -- 3. ITINERARIES
--- The header for a trip
+-- The header for a trip (Owner, Title, Mood)
 create table public.itineraries (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
@@ -64,7 +64,7 @@ create table public.itineraries (
 );
 
 -- 4. ITINERARY ITEMS (JOIN TABLE)
--- Links an itinerary to specific places with trip-specific details
+-- Links an Itinerary to a Place with specific trip details (Time, Activity)
 create table public.itinerary_items (
   id uuid default gen_random_uuid() primary key,
   itinerary_id uuid references public.itineraries(id) on delete cascade not null,
