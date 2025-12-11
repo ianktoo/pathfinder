@@ -63,7 +63,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
 
   const persistChanges = async (updated: Itinerary) => {
     setCurrentItinerary(updated);
-    if (!allowEdit) {
+    if (allowEdit) {
       await BackendService.saveItinerary(updated);
     }
   };
@@ -106,6 +106,9 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
   };
 
   const toggleComplete = async (idx: number) => {
+    // Only allow completing items if editable/active itinerary
+    if (!allowEdit) return;
+
     const newItems = [...currentItinerary.items];
     newItems[idx] = { ...newItems[idx], completed: !newItems[idx].completed };
     const updated = { ...currentItinerary, items: newItems };
@@ -199,11 +202,12 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
       };
       const responseText = await model.invoke(prompt, itinerarySchema);
       const data = JSON.parse(responseText);
-      setCurrentItinerary({
+      const updated = {
         ...currentItinerary,
         title: data.title || currentItinerary.title,
         items: data.items || currentItinerary.items
-      });
+      };
+      await persistChanges(updated);
       setChatInput('');
       setIsChatMode(false);
     } catch (e) {
@@ -244,6 +248,8 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                 >
                     <Bookmark className={`w-5 h-5 ${currentItinerary.bookmarked ? 'fill-orange-600 dark:fill-orange-400' : ''}`} />
                 </button>
+                
+                {/* AI Chat Toggle - Only visible if editing is allowed */}
                 {allowEdit && (
                     <button 
                         onClick={() => setIsChatMode(!isChatMode)} 
@@ -253,13 +259,14 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                         <MessageSquare className="w-5 h-5" />
                     </button>
                 )}
+
                 <button onClick={onClose} className="bg-stone-100 dark:bg-neutral-800 p-3 rounded-xl text-stone-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                     <X className="w-5 h-5" />
                 </button>
             </div>
             </div>
 
-            {/* Chat / Refine Mode */}
+            {/* AI Refinement Chat Input - Strictly Conditional */}
             {isChatMode && allowEdit && (
             <div className="bg-orange-50 dark:bg-orange-900/10 p-4 border-b border-orange-100 dark:border-orange-900/30 animate-in slide-in-from-top-2 shrink-0">
                 <div className="flex gap-2">
@@ -280,7 +287,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
             <div className="flex-1 p-4 md:p-8 overflow-y-auto">
             
             {/* Summary Section */}
-            <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-full">
+            <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-full" ref={storyCardRef}>
                 <div className="relative h-64 md:h-72 rounded-[2rem] overflow-hidden mb-8 shadow-2xl shadow-orange-500/10">
                     <img 
                         src={currentItinerary.items[0]?.imageUrl || `https://source.unsplash.com/random/1200x800?${currentItinerary.mood}`} 
@@ -447,19 +454,25 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                                     <div className="space-y-4">
                                         <h4 className="text-xs font-black uppercase tracking-wider text-stone-500 dark:text-stone-400">Activity Status</h4>
                                         <button 
+                                            disabled={!allowEdit}
                                             onClick={(e) => { e.stopPropagation(); toggleComplete(idx); }}
                                             className={`w-full p-4 rounded-xl border-2 flex items-center gap-4 transition-all ${
                                                 item.completed 
                                                 ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
                                                 : 'border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-orange-400 text-stone-600 dark:text-stone-300'
-                                            }`}
+                                            } ${!allowEdit ? 'opacity-50 cursor-not-allowed hover:border-stone-200' : ''}`}
                                         >
                                             <div className={`p-2 rounded-full ${item.completed ? 'bg-green-200 dark:bg-green-800' : 'bg-stone-100 dark:bg-neutral-800'}`}>
                                                 {item.completed ? <CheckCircle className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
                                             </div>
                                             <div className="text-left">
                                                 <div className="font-bold text-base">{item.completed ? 'Verified Visit' : 'Mark as Visited'}</div>
-                                                <div className="text-xs opacity-70 font-medium">{item.completed ? 'You have checked in at this location.' : 'Tap here when you arrive.'}</div>
+                                                <div className="text-xs opacity-70 font-medium">
+                                                    {allowEdit 
+                                                        ? (item.completed ? 'You have checked in at this location.' : 'Tap here when you arrive.')
+                                                        : 'Only the itinerary owner can check in.'
+                                                    }
+                                                </div>
                                             </div>
                                         </button>
                                     </div>
@@ -482,20 +495,21 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                                                 )}
                                              </div>
                                         ) : (
-                                            !allowEdit && (
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); openReviewModal(idx); }}
-                                                    className="w-full p-4 rounded-xl border-2 border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-orange-400 text-stone-600 dark:text-stone-300 flex items-center gap-4 transition-all"
-                                                >
-                                                    <div className="p-2 rounded-full bg-stone-100 dark:bg-neutral-800">
-                                                        <PenTool className="w-6 h-6" />
+                                            <button 
+                                                disabled={!allowEdit}
+                                                onClick={(e) => { e.stopPropagation(); openReviewModal(idx); }}
+                                                className={`w-full p-4 rounded-xl border-2 border-stone-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-orange-400 text-stone-600 dark:text-stone-300 flex items-center gap-4 transition-all ${!allowEdit ? 'opacity-50 cursor-not-allowed hover:border-stone-200' : ''}`}
+                                            >
+                                                <div className="p-2 rounded-full bg-stone-100 dark:bg-neutral-800">
+                                                    <PenTool className="w-6 h-6" />
+                                                </div>
+                                                <div className="text-left">
+                                                    <div className="font-bold text-base">Write a Review</div>
+                                                    <div className="text-xs opacity-70 font-medium">
+                                                        {allowEdit ? 'Share your thoughts with the community.' : 'Join this trip to leave reviews.'}
                                                     </div>
-                                                    <div className="text-left">
-                                                        <div className="font-bold text-base">Write a Review</div>
-                                                        <div className="text-xs opacity-70 font-medium">Share your thoughts with the community.</div>
-                                                    </div>
-                                                </button>
-                                            )
+                                                </div>
+                                            </button>
                                         )}
                                     </div>
                                 </div>
