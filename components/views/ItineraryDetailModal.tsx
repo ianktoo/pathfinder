@@ -61,10 +61,10 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
   // Ref for social card generation
   const storyCardRef = useRef<HTMLDivElement>(null);
 
-  const persistChanges = (updated: Itinerary) => {
+  const persistChanges = async (updated: Itinerary) => {
     setCurrentItinerary(updated);
     if (!allowEdit) {
-      BackendService.saveItinerary(updated);
+      await BackendService.saveItinerary(updated);
     }
   };
 
@@ -100,16 +100,16 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
     }
   };
 
-  const toggleBookmark = () => {
+  const toggleBookmark = async () => {
     const updated = { ...currentItinerary, bookmarked: !currentItinerary.bookmarked };
-    persistChanges(updated);
+    await persistChanges(updated);
   };
 
-  const toggleComplete = (idx: number) => {
+  const toggleComplete = async (idx: number) => {
     const newItems = [...currentItinerary.items];
     newItems[idx] = { ...newItems[idx], completed: !newItems[idx].completed };
     const updated = { ...currentItinerary, items: newItems };
-    persistChanges(updated);
+    await persistChanges(updated);
   };
 
   const toggleExpand = (idx: number) => {
@@ -137,7 +137,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
       setReviewingItemIndex(null);
   };
 
-  const submitReview = () => {
+  const submitReview = async () => {
     if (reviewingItemIndex === null) return;
     const idx = reviewingItemIndex;
     const input = reviewInputs[idx];
@@ -155,7 +155,7 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
     newItems[idx] = { ...newItems[idx], userReview: newReview };
     const updated = { ...currentItinerary, items: newItems };
     
-    persistChanges(updated);
+    await persistChanges(updated);
     closeReviewModal();
     
     if (input.shareYelp) {
@@ -592,47 +592,6 @@ export const ItineraryDetailModal = ({ itinerary, onClose, onSave, onShare, onRe
                     </div>
                 </div>
             )}
-
-            {/* HIDDEN STORY CARD FOR EXPORT */}
-            <div 
-                ref={storyCardRef}
-                className="fixed top-0 left-[-9999px] w-[375px] h-[667px] bg-stone-900 text-white overflow-hidden flex flex-col"
-            >
-                <div className="relative h-2/3">
-                    <img 
-                        src={currentItinerary.items[0]?.imageUrl || `https://source.unsplash.com/random/800x1200?${currentItinerary.mood}`} 
-                        className="w-full h-full object-cover opacity-80"
-                        alt="Cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-900 via-stone-900/50 to-transparent"></div>
-                    <div className="absolute bottom-8 left-6 right-6">
-                        <div className="bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full w-fit mb-4 uppercase tracking-widest">
-                            {currentItinerary.mood} Vibes
-                        </div>
-                        <h1 className="text-4xl font-black leading-none mb-4">{currentItinerary.title}</h1>
-                        <div className="flex items-center gap-2 text-stone-300 font-bold text-sm">
-                            <MapPin className="w-4 h-4 text-orange-500" />
-                            <span>{userCity}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="flex-1 bg-stone-900 p-6">
-                    <div className="space-y-4">
-                        {currentItinerary.items.slice(0, 3).map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-4">
-                                <div className="w-12 text-sm font-bold text-orange-500">{item.time}</div>
-                                <div className="flex-1 border-b border-stone-800 pb-2">
-                                    <div className="font-bold text-lg">{item.locationName}</div>
-                                    <div className="text-xs text-stone-500 uppercase tracking-wide">{item.category}</div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    <div className="mt-auto pt-8 flex items-center justify-center gap-2 text-stone-500 font-black tracking-widest text-xs uppercase">
-                        <Globe className="w-4 h-4" /> Curated on Pathfinder
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
   );

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Cookie } from 'lucide-react';
 import { Button } from './button';

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Heart, ArrowLeft, Download, User, Search, Filter, ShieldCheck, Flame } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Heart, ArrowLeft, Download, User, Search, Filter, ShieldCheck, Loader2 } from 'lucide-react';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Itinerary } from '../../types';
@@ -11,12 +11,28 @@ interface CommunityViewProps {
 }
 
 export const CommunityView = ({ onBack, onClone }: CommunityViewProps) => {
-  const [feed] = useState<Itinerary[]>(BackendService.getCommunityItineraries());
+  const [feed, setFeed] = useState<Itinerary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [moodFilter, setMoodFilter] = useState('All');
   const [sortOrder, setSortOrder] = useState<'popular' | 'recent'>('popular');
 
   const moods = ['All', 'Adventure', 'Chill', 'Foodie', 'Cultural', 'Party', 'Romantic'];
+
+  useEffect(() => {
+    const loadCommunityData = async () => {
+        setIsLoading(true);
+        try {
+            const data = await BackendService.getCommunityItineraries();
+            setFeed(data);
+        } catch (error) {
+            console.error("Failed to load community itineraries", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    loadCommunityData();
+  }, []);
 
   const filteredFeed = feed.filter(it => {
       const matchesSearch = it.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -90,66 +106,72 @@ export const CommunityView = ({ onBack, onClone }: CommunityViewProps) => {
       </header>
 
       <main className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredFeed.map((it) => (
-                <div key={it.id} className="bg-white dark:bg-neutral-900 rounded-3xl border border-stone-200 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col hover:border-orange-300 dark:hover:border-orange-800 transition-all group">
-                    <div className="h-48 bg-stone-200 dark:bg-neutral-800 relative">
-                        <img 
-                            src={it.items[0]?.imageUrl || `https://source.unsplash.com/random/800x400?${it.mood}`} 
-                            className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
-                            alt="Cover"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                        <div className="absolute bottom-4 left-4 right-4">
-                            {it.verified_community && (
-                                <div className="mb-2 inline-flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg">
-                                    <ShieldCheck className="w-3 h-3" /> Verified
+        {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+                <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+            </div>
+        ) : (
+            <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredFeed.map((it) => (
+                    <div key={it.id} className="bg-white dark:bg-neutral-900 rounded-3xl border border-stone-200 dark:border-neutral-800 shadow-sm overflow-hidden flex flex-col hover:border-orange-300 dark:hover:border-orange-800 transition-all group">
+                        <div className="h-48 bg-stone-200 dark:bg-neutral-800 relative">
+                            <img 
+                                src={it.items[0]?.imageUrl || `https://source.unsplash.com/random/800x400?${it.mood}`} 
+                                className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+                                alt="Cover"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                            <div className="absolute bottom-4 left-4 right-4">
+                                {it.verified_community && (
+                                    <div className="mb-2 inline-flex items-center gap-1 bg-blue-500 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg">
+                                        <ShieldCheck className="w-3 h-3" /> Verified
+                                    </div>
+                                )}
+                                <h3 className="text-white font-black text-xl leading-tight mb-1 line-clamp-2">{it.title}</h3>
+                                <div className="flex items-center gap-2 text-white/80 text-xs font-bold">
+                                    <User className="w-3 h-3" />
+                                    <span>{it.author || 'Anonymous'}</span>
                                 </div>
-                            )}
-                            <h3 className="text-white font-black text-xl leading-tight mb-1 line-clamp-2">{it.title}</h3>
-                            <div className="flex items-center gap-2 text-white/80 text-xs font-bold">
-                                <User className="w-3 h-3" />
-                                <span>{it.author || 'Anonymous'}</span>
+                            </div>
+                            <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                                <Heart className="w-3 h-3 fill-white" /> {it.likes}
                             </div>
                         </div>
-                        <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                            <Heart className="w-3 h-3 fill-white" /> {it.likes}
+
+                        <div className="p-5 flex-1 flex flex-col">
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {it.tags.slice(0, 3).map(tag => (
+                                    <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+                                ))}
+                            </div>
+                            
+                            <div className="space-y-3 mb-6 flex-1">
+                                {it.items.slice(0, 2).map((item, idx) => (
+                                    <div key={idx} className="flex items-center gap-3 text-sm text-stone-600 dark:text-stone-400">
+                                        <div className="w-6 text-xs font-bold text-orange-600">{item.time}</div>
+                                        <span className="truncate font-medium">{item.locationName}</span>
+                                    </div>
+                                ))}
+                                {it.items.length > 2 && (
+                                    <div className="text-xs text-stone-400 pl-9 font-medium">+{it.items.length - 2} more stops</div>
+                                )}
+                            </div>
+
+                            <div className="pt-4 border-t border-stone-100 dark:border-neutral-800">
+                                <Button 
+                                    onClick={() => onClone(it)} 
+                                    variant="secondary" 
+                                    className="w-full py-2 px-4 text-xs h-auto"
+                                    icon={Download}
+                                >
+                                    Add to My Plans
+                                </Button>
+                            </div>
                         </div>
                     </div>
-
-                    <div className="p-5 flex-1 flex flex-col">
-                        <div className="flex flex-wrap gap-2 mb-4">
-                             {it.tags.slice(0, 3).map(tag => (
-                                 <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
-                             ))}
-                        </div>
-                        
-                        <div className="space-y-3 mb-6 flex-1">
-                            {it.items.slice(0, 2).map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-3 text-sm text-stone-600 dark:text-stone-400">
-                                    <div className="w-6 text-xs font-bold text-orange-600">{item.time}</div>
-                                    <span className="truncate font-medium">{item.locationName}</span>
-                                </div>
-                            ))}
-                            {it.items.length > 2 && (
-                                <div className="text-xs text-stone-400 pl-9 font-medium">+{it.items.length - 2} more stops</div>
-                            )}
-                        </div>
-
-                        <div className="pt-4 border-t border-stone-100 dark:border-neutral-800">
-                            <Button 
-                                onClick={() => onClone(it)} 
-                                variant="secondary" 
-                                className="w-full py-2 px-4 text-xs h-auto"
-                                icon={Download}
-                            >
-                                Add to My Plans
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
+                ))}
+            </div>
+        )}
       </main>
     </div>
   );

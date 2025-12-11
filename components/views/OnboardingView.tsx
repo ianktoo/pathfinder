@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
-import { MapPin, Coffee, Star, Moon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Coffee, Star, Moon, LocateFixed, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { UserProfile } from '../../types';
+import { LocationService } from '../../services/location';
+import { useToast } from '../ui/toast';
 
 export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfile) => void }) => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [personality, setPersonality] = useState<UserProfile['personality']>('Chill');
+  const [detecting, setDetecting] = useState(false);
+  
+  const { showToast } = useToast();
 
   const personalities = [
     { id: 'Adventurous', icon: MapPin, desc: 'Exploration & Hidden Gems' },
@@ -17,9 +22,37 @@ export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfi
     { id: 'Party', icon: Moon, desc: 'Nightlife & Socializing' },
   ];
 
+  // Try to auto-detect location on mount if permission exists
+  useEffect(() => {
+    if (step === 1 && navigator.permissions) {
+        navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+            if (result.state === 'granted') {
+                handleDetectLocation();
+            }
+        });
+    }
+  }, [step]);
+
   const handleNext = () => {
     if (step === 1 && name && city) setStep(2);
     else if (step === 2) onComplete({ name, email: '', city, personality });
+  };
+
+  const handleDetectLocation = async () => {
+    setDetecting(true);
+    try {
+      const pos = await LocationService.getCurrentPosition();
+      const loc = await LocationService.getCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+      setCity(loc);
+      showToast("Location detected successfully!", "success");
+    } catch (e) {
+      // Don't show error toast on auto-detect fail, only manual click
+      if (e instanceof Error && e.message !== 'Geolocation is not supported by your browser') {
+         // Optional: log error
+      }
+    } finally {
+      setDetecting(false);
+    }
   };
 
   return (
@@ -34,8 +67,30 @@ export const OnboardingView = ({ onComplete }: { onComplete: (profile: UserProfi
           <div className="animate-in slide-in-from-right-8 fade-in duration-300">
             <h2 className="text-3xl font-black mb-2 text-stone-900 dark:text-white uppercase">Who are you?</h2>
             <p className="text-stone-500 dark:text-stone-400 mb-8 font-medium">Let's get the basics down.</p>
-            <Input label="First Name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Indiana" />
-            <Input label="Base City" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Chicago, IL" />
+            
+            <Input 
+                label="First Name" 
+                value={name} 
+                onChange={(e) => setName(e.target.value)} 
+                placeholder="Indiana" 
+            />
+            
+            <div className="relative">
+                <Input 
+                    label="Base City" 
+                    value={city} 
+                    onChange={(e) => setCity(e.target.value)} 
+                    placeholder="City, Country" 
+                />
+                <button 
+                    onClick={handleDetectLocation}
+                    disabled={detecting}
+                    className="absolute top-0 right-0 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-orange-600 hover:text-orange-500 transition-colors disabled:opacity-50"
+                >
+                    {detecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <LocateFixed className="w-3 h-3" />}
+                    {detecting ? 'Locating...' : 'Auto-Detect'}
+                </button>
+            </div>
           </div>
         ) : (
           <div className="animate-in slide-in-from-right-8 fade-in duration-300">

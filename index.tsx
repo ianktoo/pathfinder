@@ -48,9 +48,11 @@ export default function App() {
             const { data: { session } } = await supabase!.auth.getSession();
             if (session?.user) {
                 const profile = AuthService.mapUserToProfile(session.user);
+                // Merge with locally stored profile data (e.g. city/personality) if available
                 const localProfile = await BackendService.getUser();
                 setUser({ ...profile, ...localProfile } as UserProfile);
                 
+                // Fetch saved itineraries for user
                 const saved = await BackendService.getSavedItineraries();
                 setSavedItineraries(saved);
                 
@@ -131,14 +133,14 @@ export default function App() {
   };
 
   const handleCloneItinerary = async (itinerary: Itinerary) => {
-    const cloned = { ...itinerary, id: Date.now().toString(), title: `(Copy) ${itinerary.title}` };
+    const cloned = { ...itinerary, id: crypto.randomUUID(), title: `(Copy) ${itinerary.title}` };
     await handleSaveItinerary(cloned);
   };
   
   const handleRemixItinerary = async (itinerary: Itinerary) => {
     const remixed = { 
         ...itinerary, 
-        id: Date.now().toString(), 
+        id: crypto.randomUUID(), 
         title: `(Remix) ${itinerary.title}`,
         shared: false
     };

@@ -7,7 +7,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   icon?: React.ElementType;
   isLoading?: boolean;
   children?: React.ReactNode;
-  // Explicitly defining these standard props to resolve TypeScript inheritance issues
+  // Explicitly defining standard props
   className?: string;
   disabled?: boolean;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
