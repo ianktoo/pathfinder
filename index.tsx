@@ -143,6 +143,10 @@ function PathfinderApp() {
     if (isSupabaseConfigured()) {
         const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN' && session?.user) {
+                // OPTIMIZATION: If we already have a user in state that matches this session, skip fetching
+                // This prevents the double-loading effect when 'handleLogin' has already run
+                if (user && user.email === session.user.email) return;
+
                 const profile = AuthService.mapUserToProfile(session.user);
                 const localProfile = await BackendService.getUser();
                 setUser({ ...profile, ...localProfile } as UserProfile);
@@ -150,7 +154,10 @@ function PathfinderApp() {
                 const saved = await BackendService.getSavedItineraries();
                 setSavedItineraries(saved);
                 
-                navigate('/dashboard');
+                // Only navigate if we are currently on an auth page
+                if (location.pathname === '/' || location.pathname === '/auth') {
+                    navigate('/dashboard');
+                }
                 setIsLoading(false); 
             } else if (event === 'SIGNED_OUT') {
                 setUser(null);
@@ -167,11 +174,18 @@ function PathfinderApp() {
     };
   }, []);
 
-  const handleLogin = async (partialUser: Partial<UserProfile>) => {
-    const existing = await BackendService.getUser();
-    if (existing || (partialUser.city && partialUser.personality)) {
+  const handleLogin = (partialUser: Partial<UserProfile>) => {
+    // Optimistic Login: Don't wait for DB fetch.
+    // The AuthView has already authenticated via Supabase, so we trust the partial data.
+    // The background onAuthStateChange listener will eventually sync the full profile.
+    
+    if (partialUser.name && (partialUser.city && partialUser.personality)) {
+       // We have enough data to treat as full user
+       setUser(partialUser as UserProfile);
        navigate('/dashboard');
     } else {
+       // Missing profile data, send to onboarding
+       setUser(partialUser as UserProfile); // Set what we have
        navigate('/onboarding');
     }
   };
@@ -217,6 +231,11 @@ function PathfinderApp() {
   const handleUpdateProfile = (updatedUser: UserProfile) => {
       setUser(updatedUser);
   };
+
+  // Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location]);
 
   if (isLoading) {
     return (

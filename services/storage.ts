@@ -328,13 +328,22 @@ export const BackendService = {
 
     if (isSupabaseConfigured()) {
         try {
-            const { data: { user } } = await supabase!.auth.getUser();
-            if (user) {
-                const { data } = await supabase!
+            // Use getSession (local check) instead of getUser (remote check) for speed
+            const { data: { session } } = await supabase!.auth.getSession();
+            
+            if (session?.user) {
+                // Fetch profile with strict timeout (2s) to prevent "sleeping db" hang
+                const profilePromise = supabase!
                     .from('profiles')
                     .select('*')
-                    .eq('id', user.id)
+                    .eq('id', session.user.id)
                     .single();
+                
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('DB Timeout')), 2000)
+                );
+
+                const { data } = await Promise.race([profilePromise, timeoutPromise]) as any;
                 
                 if (data) {
                     profile = {
@@ -346,7 +355,7 @@ export const BackendService = {
                 }
             }
         } catch (e) {
-            logError("User fetch failed", e);
+            logError("User fetch failed or timed out", e);
         }
     }
 
