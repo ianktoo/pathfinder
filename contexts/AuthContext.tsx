@@ -120,13 +120,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const logout = async () => {
         try {
-            await AuthService.signOut();
+            // Try to sign out on server, but give up after 800ms to ensure UI responsiveness
+            await Promise.race([
+                AuthService.signOut(),
+                new Promise(resolve => setTimeout(resolve, 800))
+            ]);
         } catch (e) {
-            console.error("Sign out error", e);
+            console.error("Sign out attempt failed or timed out", e);
         }
+
         setUser(null);
+
+        // Clear user-specific data from BackendService
         await BackendService.clearUser();
-        // Force reload to ensure clean state if needed
+
+        // Manually clear Supabase tokens to ensure they don't persist after reload
+        // This is necessary because sometimes signOut() doesn't clear storage in time or fails
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('sb-') || key.startsWith('supabase.')) {
+                localStorage.removeItem(key);
+            }
+        });
+
         window.location.href = '/';
     };
 

@@ -4,6 +4,7 @@ import { cn } from '../../lib/utils';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
+  size?: 'sm' | 'md' | 'lg';
   icon?: React.ElementType;
   isLoading?: boolean;
   children?: React.ReactNode;
@@ -15,14 +16,15 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   title?: string;
 }
 
-export const Button = ({ 
-  children, 
-  className, 
-  variant = 'primary', 
-  icon: Icon, 
-  isLoading, 
-  disabled, 
-  ...props 
+export const Button = ({
+  children,
+  className,
+  variant = 'primary',
+  size = 'md',
+  icon: Icon,
+  isLoading,
+  disabled,
+  ...props
 }: ButtonProps) => {
   const styles = {
     primary: "bg-orange-600 text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 hover:shadow-orange-500/40 active:scale-95",
@@ -32,14 +34,21 @@ export const Button = ({
     outline: "border border-stone-300 dark:border-neutral-700 hover:bg-stone-50 dark:hover:bg-neutral-800 text-stone-700 dark:text-stone-300"
   };
 
+  const sizes = {
+    sm: "py-2 px-4 text-xs h-9",
+    md: "py-3.5 px-6 text-sm",
+    lg: "py-4 px-8 text-base"
+  };
+
   return (
-    <button 
-      disabled={disabled || isLoading} 
+    <button
+      disabled={disabled || isLoading}
       className={cn(
-        "w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-sm disabled:opacity-50 disabled:cursor-not-allowed",
+        "w-full rounded-xl font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide disabled:opacity-50 disabled:cursor-not-allowed",
         styles[variant],
+        sizes[size],
         className
-      )} 
+      )}
       {...props}
     >
       {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (Icon && <Icon className="w-5 h-5" />)}

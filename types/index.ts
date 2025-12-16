@@ -53,5 +53,5 @@ export interface ToastMessage {
   type: ToastType;
 }
 
-export type ModelID = 'gemini-2.5-flash' | 'gemini-3-pro-preview';
+export type ModelID = 'gemini-1.5-flash' | 'gemini-1.5-pro' | 'gemini-2.0-flash-exp';
 export type ViewState = 'home' | 'auth' | 'onboarding' | 'dashboard' | 'create' | 'about' | 'privacy' | 'community' | 'profile' | 'library';

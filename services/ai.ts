@@ -53,10 +53,16 @@ export class RunnableSequence {
 }
 
 export const ModelRegistry = {
-  currentModelId: 'gemini-2.5-flash' as ModelID,
+  currentModelId: 'gemini-1.5-flash' as ModelID,
 
   getProvider: (): BaseLLM => {
-    const apiKey = process.env.VITE_GEMINI_API_KEY || '';
+    // Check both standard process.env and Vite's import.meta.env
+    const envKey = process.env.VITE_GEMINI_API_KEY;
+    // @ts-ignore
+    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
+
+    const apiKey = envKey || viteKey || '';
+
     if (!apiKey) {
       console.warn("Gemini API Key is missing. Check .env file.");
     }
@@ -84,6 +90,13 @@ export const ModelRegistry = {
 
   init: () => {
     const saved = localStorage.getItem('preferred_model') as ModelID;
-    if (saved) ModelRegistry.currentModelId = saved;
+    const validModels: ModelID[] = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+
+    if (saved && validModels.includes(saved)) {
+      ModelRegistry.currentModelId = saved;
+    } else {
+      // Fallback or override invalid defaults
+      ModelRegistry.currentModelId = 'gemini-1.5-flash';
+    }
   }
 };

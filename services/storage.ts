@@ -227,6 +227,84 @@ export const BackendService = {
     return itineraries;
   },
 
+  getItineraryById: async (id: string): Promise<Itinerary | null> => {
+    // 1. Check Local Storage first (fastest)
+    const local = JSON.parse(localStorage.getItem('saved_itineraries') || '[]');
+    const foundLocal = local.find((i: Itinerary) => i.id === id);
+    if (foundLocal) return foundLocal;
+
+    // 2. Check Community Local
+    const communityLocal = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
+    const foundCommunity = communityLocal.find((i: Itinerary) => i.id === id);
+    if (foundCommunity) return foundCommunity;
+
+    // 3. Try Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase!
+          .from('itineraries')
+          .select(`
+                    *,
+                    profiles(name),
+                    itinerary_items (
+                        time,
+                        activity,
+                        description,
+                        order_index,
+                        completed,
+                        user_review,
+                        places (
+                            name,
+                            category,
+                            rating,
+                            review_count,
+                            price,
+                            image_url,
+                            verified
+                        )
+                    )
+                `)
+          .eq('id', id)
+          .single();
+
+        if (!error && data) {
+          const items = (data.itinerary_items || [])
+            .sort((a: any, b: any) => a.order_index - b.order_index)
+            .map((link: any) => ({
+              time: link.time,
+              activity: link.activity,
+              description: link.description,
+              locationName: link.places?.name || 'Unknown',
+              category: link.places?.category,
+              rating: link.places?.rating,
+              reviewCount: link.places?.review_count,
+              price: link.places?.price,
+              imageUrl: link.places?.image_url,
+              verified: link.places?.verified,
+              completed: link.completed,
+              userReview: link.user_review
+            }));
+
+          return {
+            id: data.id,
+            title: data.title,
+            date: data.date,
+            mood: data.mood,
+            tags: data.tags || [],
+            items: items,
+            likes: data.likes_count,
+            shared: data.is_public,
+            verified_community: data.verified_community,
+            author: data.profiles?.name || 'Explorer'
+          };
+        }
+      } catch (e) {
+        logError("Failed to fetch itinerary by ID", e);
+      }
+    }
+    return null;
+  },
+
   getCommunityItineraries: async (): Promise<Itinerary[]> => {
     if (isSupabaseConfigured()) {
       try {

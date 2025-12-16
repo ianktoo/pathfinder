@@ -20,6 +20,7 @@ export const SignOutModal = ({ isOpen, onClose, onConfirm }: SignOutModalProps) 
             setCountdown((prev) => {
                 if (prev <= 1) {
                     clearInterval(timer);
+                    console.log("Auto-confirming logout...");
                     onConfirm();
                     return 0;
                 }
@@ -28,13 +29,18 @@ export const SignOutModal = ({ isOpen, onClose, onConfirm }: SignOutModalProps) 
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [isOpen]);
+    }, [isOpen, onConfirm]);
 
     if (!isOpen) return null;
 
+    const handleConfirm = () => {
+        console.log("Manual confirm logout clicked");
+        onConfirm();
+    };
+
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-sm border border-stone-200 dark:border-neutral-800 p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl w-full max-w-sm border border-stone-200 dark:border-neutral-800 p-6 flex flex-col items-center text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
 
                 <div className="w-16 h-16 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-6 text-red-600 dark:text-red-500 relative">
                     <LogOut className="w-8 h-8" />
@@ -78,7 +84,7 @@ export const SignOutModal = ({ isOpen, onClose, onConfirm }: SignOutModalProps) 
                         Stay Logged In
                     </button>
                     <button
-                        onClick={onConfirm}
+                        onClick={handleConfirm}
                         className="w-full py-3 px-4 text-stone-400 hover:text-red-500 dark:text-stone-500 dark:hover:text-red-400 font-bold text-sm transition-colors"
                     >
                         Sign Out Immediately
