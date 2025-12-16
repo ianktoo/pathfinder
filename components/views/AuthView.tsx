@@ -2,61 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Flame, Mail, Lock, KeyRound, ArrowRight, Info } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { UserProfile } from '../../types';
 import { useToast } from '../ui/toast';
 import { AuthService } from '../../services/auth';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
 import { isDev, logError } from '../../lib/utils';
 
 interface AuthViewProps {
-  onLogin: (user: Partial<UserProfile>) => void;
   onBack: () => void;
+  // onLogin prop removed as it's no longer responsible for state setting
 }
 
 type AuthMode = 'login' | 'register' | 'otp' | 'reset';
 
-export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
+export const AuthView = ({ onBack }: AuthViewProps) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showSlowMessage, setShowSlowMessage] = useState(false);
   const { showToast } = useToast();
-
-  useEffect(() => {
-    let timer: any;
-    let failsafe: any;
-    
-    if (isLoading) {
-        // Show "Waking up..." after 2s
-        timer = setTimeout(() => setShowSlowMessage(true), 2000);
-        // Force stop loading after 18s (Service times out at 15s)
-        failsafe = setTimeout(() => {
-            if (isLoading) {
-                setIsLoading(false);
-                setShowSlowMessage(false);
-                showToast("Connection timed out. Please check your internet or try again.", "error");
-            }
-        }, 18000);
-    } else {
-        setShowSlowMessage(false);
-    }
-    return () => {
-        clearTimeout(timer);
-        clearTimeout(failsafe);
-    };
-  }, [isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isSupabaseConfigured()) {
-        const msg = isDev 
-            ? 'System Error: Backend not connected. Please check .env configuration.' 
-            : 'Service Unavailable. Please try again later.';
-        showToast(msg, 'error');
-        logError("Supabase keys are missing.");
+        showToast('Backend not connected. Check .env file.', 'error');
         return;
     }
 
@@ -70,56 +40,37 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
     try {
         if (mode === 'reset') {
             await AuthService.resetPasswordForEmail(email);
-            showToast('Password reset link sent to your email!', 'success');
+            showToast('Password reset link sent!', 'success');
             setMode('login');
         } else if (mode === 'otp') {
             await AuthService.signInWithOtp(email);
-            showToast('Magic link sent! Check your inbox to sign in.', 'success');
+            showToast('Magic link sent! Check your inbox.', 'success');
         } else if (mode === 'register') {
             const { user } = await AuthService.signUp(email, password, name);
             if (user && !user.email_confirmed_at) {
-                showToast('Account created! Please confirm your email.', 'info');
+                showToast('Account created! Please confirm email.', 'info');
             } else {
-                showToast('Welcome to Pathfinder!', 'success');
-                onLogin(AuthService.mapUserToProfile(user));
+                showToast('Account created! Logging in...', 'success');
+                // Auto-login logic will trigger via listener
             }
         } else {
             // Login
             const { user } = await AuthService.signInWithPassword(email, password);
             if (user) {
                 showToast(`Welcome back!`, 'success');
-                onLogin(AuthService.mapUserToProfile(user));
+                // We do NOT manually navigate here. 
+                // index.tsx onAuthStateChange will detect this and redirect.
             }
         }
     } catch (error: any) {
-        logError("Auth Error:", error);
-        const msg = (isDev || !error.message?.includes('VITE_SUPABASE'))
-            ? (error.message || 'Authentication failed. Please try again.')
-            : 'Authentication service unavailable.';
+        console.error("Auth Error:", error);
+        const msg = error.message || 'Authentication failed.';
         showToast(msg, 'error');
-    } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Only stop loading on error. On success, keep loading until redirect.
     }
   };
 
   if (!isSupabaseConfigured()) {
-      if (!isDev) {
-         return (
-            <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-neutral-950 p-6">
-                <div className="max-w-md w-full text-center">
-                    <div className="w-16 h-16 bg-stone-200 dark:bg-neutral-800 rounded-full flex items-center justify-center mx-auto mb-4 text-stone-500">
-                        <Info className="w-8 h-8" />
-                    </div>
-                    <h2 className="text-xl font-bold text-stone-900 dark:text-white mb-2">Service Temporarily Unavailable</h2>
-                    <p className="text-stone-500 dark:text-stone-400 mb-6 text-sm">
-                        We are currently performing maintenance. Please check back shortly.
-                    </p>
-                    <Button onClick={onBack} variant="outline">Go Back Home</Button>
-                </div>
-            </div>
-         );
-      }
-
       return (
         <div className="min-h-screen flex items-center justify-center bg-stone-50 dark:bg-neutral-950 p-6">
             <div className="max-w-md w-full bg-white dark:bg-neutral-900 p-8 rounded-3xl border-2 border-red-100 dark:border-red-900/30 text-center">
@@ -128,7 +79,7 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
                 </div>
                 <h2 className="text-xl font-black text-stone-900 dark:text-white mb-2">Backend Connection Missing</h2>
                 <p className="text-stone-500 dark:text-stone-400 mb-6 text-sm">
-                    The application cannot connect to Supabase. Please ensure your <code>.env</code> file contains the correct <strong>VITE_SUPABASE_URL</strong> and <strong>VITE_SUPABASE_ANON_KEY</strong>.
+                    Connection to Supabase failed. Please check <code>VITE_SUPABASE_URL</code>.
                 </p>
                 <Button onClick={onBack} variant="outline">Go Back Home</Button>
             </div>
@@ -204,12 +155,6 @@ export const AuthView = ({ onLogin, onBack }: AuthViewProps) => {
                 {mode === 'otp' && 'Send Magic Link'}
                 {mode === 'reset' && 'Send Reset Link'}
              </Button>
-             
-             {showSlowMessage && (
-                 <p className="text-center text-xs text-orange-600 font-bold mt-3 animate-pulse">
-                     Waking up database... nearly there!
-                 </p>
-             )}
           </div>
         </form>
 
