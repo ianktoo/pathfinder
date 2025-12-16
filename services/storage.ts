@@ -37,7 +37,7 @@ const isValidUUID = (uuid: string) => {
 };
 
 export const BackendService = {
-  
+
   // --- ITINERARIES ---
 
   saveItinerary: async (itinerary: Itinerary): Promise<boolean> => {
@@ -56,7 +56,7 @@ export const BackendService = {
       if (isSupabaseConfigured()) {
         const { data: { user } } = await supabase!.auth.getUser();
         if (user) {
-          
+
           // A. Save the Itinerary Header
           const { error: itinError } = await supabase!
             .from('itineraries')
@@ -76,21 +76,21 @@ export const BackendService = {
 
           // B. Handle Items & Places Normalization
           if (itineraryToSave.items && itineraryToSave.items.length > 0) {
-            
+
             // 1. Upsert Places (Businesses)
             // We use locationName as a key constraint. In a real app, use Yelp ID.
             for (const item of itineraryToSave.items) {
-               await supabase!
-                 .from('places')
-                 .upsert({
-                    name: item.locationName,
-                    category: item.category,
-                    rating: item.rating,
-                    review_count: item.reviewCount,
-                    price: item.price,
-                    image_url: item.imageUrl,
-                    verified: item.verified
-                 }, { onConflict: 'name' }); 
+              await supabase!
+                .from('places')
+                .upsert({
+                  name: item.locationName,
+                  category: item.category,
+                  rating: item.rating,
+                  review_count: item.reviewCount,
+                  price: item.price,
+                  image_url: item.imageUrl,
+                  verified: item.verified
+                }, { onConflict: 'name' });
             }
 
             // 2. Clear existing items for this itinerary to prevent duplicates
@@ -103,35 +103,35 @@ export const BackendService = {
             // Fetch the place IDs we just upserted.
             const newLinks = [];
             for (let i = 0; i < itineraryToSave.items.length; i++) {
-                const item = itineraryToSave.items[i];
-                
-                // Get the place ID for this item
-                const { data: placeData } = await supabase!
-                    .from('places')
-                    .select('id')
-                    .eq('name', item.locationName)
-                    .single();
+              const item = itineraryToSave.items[i];
 
-                if (placeData) {
-                    newLinks.push({
-                        itinerary_id: validId,
-                        place_id: placeData.id,
-                        time: item.time,
-                        activity: item.activity,
-                        description: item.description,
-                        order_index: i,
-                        completed: item.completed || false,
-                        user_review: item.userReview // JSONB for the review itself
-                    });
-                }
+              // Get the place ID for this item
+              const { data: placeData } = await supabase!
+                .from('places')
+                .select('id')
+                .eq('name', item.locationName)
+                .single();
+
+              if (placeData) {
+                newLinks.push({
+                  itinerary_id: validId,
+                  place_id: placeData.id,
+                  time: item.time,
+                  activity: item.activity,
+                  description: item.description,
+                  order_index: i,
+                  completed: item.completed || false,
+                  user_review: item.userReview // JSONB for the review itself
+                });
+              }
             }
 
             if (newLinks.length > 0) {
-                const { error: linkError } = await supabase!
-                    .from('itinerary_items')
-                    .insert(newLinks);
-                
-                if (linkError) console.error("Link error", linkError);
+              const { error: linkError } = await supabase!
+                .from('itinerary_items')
+                .insert(newLinks);
+
+              if (linkError) console.error("Link error", linkError);
             }
           }
         }
@@ -139,7 +139,7 @@ export const BackendService = {
       return true;
     } catch (e) {
       logError("Storage failed", e);
-      return false; 
+      return false;
     }
   },
 
@@ -177,42 +177,42 @@ export const BackendService = {
             `)
             .eq('user_id', user.id)
             .order('created_at', { ascending: false });
-          
+
           if (error) throw error;
-          
+
           if (data) {
             itineraries = data.map((row: any) => {
-                // Map the joined relational data back to the flat ItineraryItem structure
-                const items = (row.itinerary_items || [])
-                    .sort((a: any, b: any) => a.order_index - b.order_index)
-                    .map((link: any) => ({
-                        time: link.time,
-                        activity: link.activity,
-                        description: link.description,
-                        completed: link.completed,
-                        userReview: link.user_review,
-                        // Flatten place data
-                        locationName: link.places?.name || 'Unknown',
-                        category: link.places?.category,
-                        rating: link.places?.rating,
-                        reviewCount: link.places?.review_count,
-                        price: link.places?.price,
-                        imageUrl: link.places?.image_url,
-                        verified: link.places?.verified
-                    }));
+              // Map the joined relational data back to the flat ItineraryItem structure
+              const items = (row.itinerary_items || [])
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((link: any) => ({
+                  time: link.time,
+                  activity: link.activity,
+                  description: link.description,
+                  completed: link.completed,
+                  userReview: link.user_review,
+                  // Flatten place data
+                  locationName: link.places?.name || 'Unknown',
+                  category: link.places?.category,
+                  rating: link.places?.rating,
+                  reviewCount: link.places?.review_count,
+                  price: link.places?.price,
+                  imageUrl: link.places?.image_url,
+                  verified: link.places?.verified
+                }));
 
-                return {
-                    id: row.id,
-                    title: row.title,
-                    date: row.date,
-                    mood: row.mood,
-                    tags: row.tags || [],
-                    items: items,
-                    likes: row.likes_count,
-                    shared: row.is_public,
-                    verified_community: row.verified_community,
-                    bookmarked: false 
-                };
+              return {
+                id: row.id,
+                title: row.title,
+                date: row.date,
+                mood: row.mood,
+                tags: row.tags || [],
+                items: items,
+                likes: row.likes_count,
+                shared: row.is_public,
+                verified_community: row.verified_community,
+                bookmarked: false
+              };
             });
           }
         }
@@ -265,33 +265,33 @@ export const BackendService = {
 
         if (!error && data) {
           return data.map((row: any) => {
-             const items = (row.itinerary_items || [])
-                .sort((a: any, b: any) => a.order_index - b.order_index)
-                .map((link: any) => ({
-                    time: link.time,
-                    activity: link.activity,
-                    description: link.description,
-                    locationName: link.places?.name,
-                    category: link.places?.category,
-                    rating: link.places?.rating,
-                    reviewCount: link.places?.review_count,
-                    price: link.places?.price,
-                    imageUrl: link.places?.image_url,
-                    verified: link.places?.verified
-                }));
+            const items = (row.itinerary_items || [])
+              .sort((a: any, b: any) => a.order_index - b.order_index)
+              .map((link: any) => ({
+                time: link.time,
+                activity: link.activity,
+                description: link.description,
+                locationName: link.places?.name,
+                category: link.places?.category,
+                rating: link.places?.rating,
+                reviewCount: link.places?.review_count,
+                price: link.places?.price,
+                imageUrl: link.places?.image_url,
+                verified: link.places?.verified
+              }));
 
-             return {
-                id: row.id,
-                title: row.title,
-                date: row.date,
-                mood: row.mood,
-                tags: row.tags || [],
-                items: items,
-                author: row.profiles?.name || 'Explorer',
-                likes: row.likes_count,
-                shared: true,
-                verified_community: row.verified_community
-             };
+            return {
+              id: row.id,
+              title: row.title,
+              date: row.date,
+              mood: row.mood,
+              tags: row.tags || [],
+              items: items,
+              author: row.profiles?.name || 'Explorer',
+              likes: row.likes_count,
+              shared: true,
+              verified_community: row.verified_community
+            };
           });
         }
       } catch (e) {
@@ -307,16 +307,16 @@ export const BackendService = {
   publishItinerary: async (itinerary: Itinerary, authorName: string): Promise<boolean> => {
     // 1. Local Update (Optimistic)
     try {
-        const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
-        const publishedItinerary = { ...itinerary, id: validId, shared: true, author: authorName };
-        const existing = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
-        localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
-    } catch(e) {}
+      const validId = isValidUUID(itinerary.id) ? itinerary.id : crypto.randomUUID();
+      const publishedItinerary = { ...itinerary, id: validId, shared: true, author: authorName };
+      const existing = JSON.parse(localStorage.getItem('community_itineraries') || '[]');
+      localStorage.setItem('community_itineraries', JSON.stringify([publishedItinerary, ...existing]));
+    } catch (e) { }
 
     // 2. Supabase Update
     if (isSupabaseConfigured()) {
-        const itinToPublish = { ...itinerary, shared: true };
-        return await BackendService.saveItinerary(itinToPublish);
+      const itinToPublish = { ...itinerary, shared: true };
+      return await BackendService.saveItinerary(itinToPublish);
     }
     return true;
   },
@@ -327,42 +327,42 @@ export const BackendService = {
     let profile: UserProfile | null = null;
 
     if (isSupabaseConfigured()) {
-        try {
-            // Use getSession (local check) instead of getUser (remote check) for speed
-            const { data: { session } } = await supabase!.auth.getSession();
-            
-            if (session?.user) {
-                // Fetch profile with strict timeout (2s) to prevent "sleeping db" hang
-                const profilePromise = supabase!
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single();
-                
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('DB Timeout')), 2000)
-                );
+      try {
+        // Use getSession (local check) instead of getUser (remote check) for speed
+        const { data: { session } } = await supabase!.auth.getSession();
 
-                const { data } = await Promise.race([profilePromise, timeoutPromise]) as any;
-                
-                if (data) {
-                    profile = {
-                        name: data.name,
-                        email: data.email,
-                        city: data.city,
-                        personality: data.personality
-                    };
-                }
-            }
-        } catch (e) {
-            logError("User fetch failed or timed out", e);
+        if (session?.user) {
+          // Fetch profile with strict timeout (2s) to prevent "sleeping db" hang
+          const profilePromise = supabase!
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('DB Timeout')), 5000)
+          );
+
+          const { data } = await Promise.race([profilePromise, timeoutPromise]) as any;
+
+          if (data) {
+            profile = {
+              name: data.name,
+              email: data.email,
+              city: data.city,
+              personality: data.personality
+            };
+          }
         }
+      } catch (e) {
+        logError("User fetch failed or timed out", e);
+      }
     }
 
     // Fallback to local
     if (!profile) {
-        const cached = localStorage.getItem('user_profile');
-        if (cached) return JSON.parse(cached);
+      const cached = localStorage.getItem('user_profile');
+      if (cached) return JSON.parse(cached);
     }
 
     return profile;
@@ -374,22 +374,22 @@ export const BackendService = {
 
     // Supabase Sync
     if (isSupabaseConfigured()) {
-        try {
-            const { data: { session } } = await supabase!.auth.getSession();
-            if (session?.user) {
-                await supabase!
-                    .from('profiles')
-                    .upsert({
-                        id: session.user.id,
-                        email: user.email,
-                        name: user.name,
-                        city: user.city,
-                        personality: user.personality
-                    });
-            }
-        } catch (e) {
-            logError("Profile sync failed", e);
+      try {
+        const { data: { session } } = await supabase!.auth.getSession();
+        if (session?.user) {
+          await supabase!
+            .from('profiles')
+            .upsert({
+              id: session.user.id,
+              email: user.email,
+              name: user.name,
+              city: user.city,
+              personality: user.personality
+            });
         }
+      } catch (e) {
+        logError("Profile sync failed", e);
+      }
     }
   },
 

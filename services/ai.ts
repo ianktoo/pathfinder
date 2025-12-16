@@ -19,7 +19,7 @@ export class GeminiProvider extends BaseLLM {
     const config: any = {
       responseMimeType: schema ? 'application/json' : 'text/plain',
     };
-    
+
     if (schema) {
       config.responseSchema = schema;
     }
@@ -35,7 +35,7 @@ export class GeminiProvider extends BaseLLM {
 }
 
 export class PromptTemplate {
-  constructor(private template: string) {}
+  constructor(private template: string) { }
 
   format(variables: Record<string, string>): string {
     return this.template.replace(/\{(\w+)\}/g, (_, key) => variables[key] || '');
@@ -43,7 +43,7 @@ export class PromptTemplate {
 }
 
 export class RunnableSequence {
-  constructor(private template: PromptTemplate, private model: BaseLLM, private schema?: any) {}
+  constructor(private template: PromptTemplate, private model: BaseLLM, private schema?: any) { }
 
   async invoke(variables: Record<string, string>): Promise<any> {
     const prompt = this.template.format(variables);
@@ -54,9 +54,9 @@ export class RunnableSequence {
 
 export const ModelRegistry = {
   currentModelId: 'gemini-2.5-flash' as ModelID,
-  
+
   getProvider: (): BaseLLM => {
-    const apiKey = process.env.API_KEY || '';
+    const apiKey = process.env.VITE_GEMINI_API_KEY || '';
     if (!apiKey) {
       console.warn("Gemini API Key is missing. Check .env file.");
     }
@@ -70,11 +70,15 @@ export const ModelRegistry = {
 
   hasApiKey: (): boolean => {
     // Check both standard process.env and Vite's import.meta.env
-    const envKey = process.env.API_KEY;
+    const envKey = process.env.VITE_GEMINI_API_KEY;
+
+    console.log("Gemini API Key:", envKey);
     // @ts-ignore
-    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.API_KEY : undefined;
-    
+    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
+
     const key = envKey || viteKey;
+
+    console.log("Gemini API Key (final):", key);
     return !!key && key.length > 0;
   },
 
