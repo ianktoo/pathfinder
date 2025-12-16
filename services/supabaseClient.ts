@@ -25,7 +25,7 @@ const getEnvVar = (key: string) => {
   return undefined;
 };
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL') ? getEnvVar('VITE_SUPABASE_URL').replace(/\/$/, '') : undefined;
 const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
 
 // Validate that keys are not placeholders
@@ -42,6 +42,7 @@ export const supabase = isValidConfig()
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      detectSessionInUrl: false, // Prevents interference from URL fragments on localhost
     }
   })
   : null;

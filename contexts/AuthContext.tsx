@@ -20,119 +20,99 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Use a ref to track the latest user state for event listeners (avoids stale closures)
-    const userRef = useRef(user);
-
-    useEffect(() => {
-        userRef.current = user;
-    }, [user]);
-
-    // Failsafe Timeout to prevent infinite loading screens
-    useEffect(() => {
-        const safetyTimer = setTimeout(() => {
-            if (isLoading) {
-                console.warn("Auth initialization timed out, forcing UI render.");
-                setIsLoading(false);
-            }
-        }, 10000); // 10s safety timeout
-
-        return () => clearTimeout(safetyTimer);
-    }, [isLoading]);
-
-    const refreshSession = async () => {
+    const handleUserSession = async (sessionUser: any) => {
+        console.log("Handle User Session Start", sessionUser?.email);
         try {
-            if (isSupabaseConfigured()) {
-                // Get the session directly; assume getSession handles its own internal timeouts nicely
-                // or returns null if no session.
-                const { data: { session }, error } = await supabase!.auth.getSession();
-
-                if (session?.user && !error) {
-                    // We have a valid session.
-                    // 1. Get basic info from Auth
-                    const authProfile = AuthService.mapUserToProfile(session.user);
-
-                    // 2. Try to fetch full profile from DB (or fallback to local cache/session)
-                    const fullProfile = await BackendService.getUser();
-                    // Note: BackendService.getUser() internally handles the DB/Local merge fallback logic.
-
-                    const finalUser = (fullProfile || authProfile) as UserProfile;
-
-                    setUser(finalUser);
-                    // Ensure local storage is in sync immediately
-                    await BackendService.saveUser(finalUser);
-                    setIsLoading(false);
-                    return;
-                }
-            }
-
-            // Fallback: If no Supabase session (or not configured), check Local Storage
-            const cachedUser = await BackendService.getUser();
-            if (cachedUser) {
-                console.log("Restoring session from local storage.");
-                setUser(cachedUser);
-            } else {
+            if (!sessionUser) {
+                console.log("No user, clearing.");
                 setUser(null);
+                await BackendService.clearUser();
+                return;
             }
+
+            const authProfile = AuthService.mapUserToProfile(sessionUser);
+            // Try to get extended profile
+            console.log("Fetching local profile...");
+            const localProfile = await BackendService.getUser(sessionUser);
+            console.log("Local profile fetched.");
+            // Note: In a real app we might fetch from 'profiles' table via Supabase, 
+            // but BackendService handles the local/db mix for now.
+
+            const mergedUser = { ...authProfile, ...(localProfile || {}) } as UserProfile;
+
+            // Only update if actually changed to avoid render loops (simple check)
+            setUser(mergedUser);
+            await BackendService.saveUser(mergedUser);
+            console.log("User set and saved.");
         } catch (e) {
-            console.error("Session check failed", e);
-            // Even on error, we must stop loading
+            console.error("Error handling user session:", e);
         } finally {
+            console.log("Loading set to false.");
             setIsLoading(false);
         }
     };
 
+    // Safety Timeout
     useEffect(() => {
-        ModelRegistry.init();
-        refreshSession();
+        const timer = setTimeout(() => {
+            if (isLoading) {
+                console.warn("Force clearing loading state after timeout");
+                setIsLoading(false);
+            }
+        }, 4000); // 4 seconds max load time
+        return () => clearTimeout(timer);
+    }, [isLoading]);
 
-        // Listen for Auth Changes from Supabase
-        let authListener: any = null;
-        if (isSupabaseConfigured()) {
-            const { data } = supabase!.auth.onAuthStateChange(async (event, session) => {
-                console.log(`Auth event: ${event}`);
-                try {
-                    if (event === 'SIGNED_IN' && session?.user) {
-                        const currentUser = userRef.current;
-                        if (currentUser && currentUser.email === session.user.email) {
-                            // Already logged in, but we might want to refresh data just in case
-                            return;
-                        }
+    useEffect(() => {
+        let mounted = true;
 
-                        // Fresh login
-                        const authProfile = AuthService.mapUserToProfile(session.user);
-
-                        // Try to get existing profile data (e.g. from previous local session or DB)
-                        const localProfile = await BackendService.getUser();
-
-                        const mergedUser = { ...authProfile, ...(localProfile || {}) } as UserProfile;
-
-                        setUser(mergedUser);
-                        await BackendService.saveUser(mergedUser);
-                        setIsLoading(false);
-
-                    } else if (event === 'SIGNED_OUT') {
-                        // Clear state
-                        setUser(null);
-                        await BackendService.clearUser();
-                        setIsLoading(false);
-                    }
-                } catch (error) {
-                    console.error("Auth state change error:", error);
+        // 1. Setup Listener
+        const { data: { subscription } } = supabase!.auth.onAuthStateChange(async (event, session) => {
+            console.log(`Auth event: ${event}`);
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+                if (mounted) await handleUserSession(session?.user);
+            } else if (event === 'SIGNED_OUT') {
+                if (mounted) {
+                    setUser(null);
+                    await BackendService.clearUser();
                     setIsLoading(false);
                 }
-            });
-            authListener = data.subscription;
-        }
+            }
+        });
+
+        // 2. Initial Check
+        const initSession = async () => {
+            try {
+                const { data: { session } } = await supabase!.auth.getSession();
+                if (mounted) {
+                    if (session?.user) {
+                        await handleUserSession(session.user);
+                    } else {
+                        // If no Supabase session, check local storage fallback
+                        // This supports "Remember Me" if the SDK fails to init but we have data
+                        const cached = await BackendService.getUser();
+                        if (cached) {
+                            console.log("Restoring off-line session");
+                            setUser(cached);
+                        }
+                        setIsLoading(false);
+                    }
+                }
+            } catch (err) {
+                console.error("Init session error", err);
+                if (mounted) setIsLoading(false);
+            }
+        };
+
+        initSession();
 
         return () => {
-            if (authListener) authListener.unsubscribe();
+            mounted = false;
+            subscription.unsubscribe();
         };
     }, []);
 
     const login = async (partialUser: Partial<UserProfile>) => {
-        // If we constitute a user from a partial object (e.g. initial registration flow before full profile),
-        // we update state.
-        // NOTE: This usually comes from the UI "optimistically" or during onboarding.
         const newUser = { ...(user || {}), ...partialUser } as UserProfile;
         setUser(newUser);
         await BackendService.saveUser(newUser);
@@ -141,16 +121,23 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const logout = async () => {
         try {
             await AuthService.signOut();
-        } catch (e) { console.error(e); }
-        // State cleaning happens in onAuthStateChange(SIGNED_OUT), 
-        // but we force it here to be responsive in case network fails.
-        await BackendService.clearUser();
+        } catch (e) {
+            console.error("Sign out error", e);
+        }
         setUser(null);
+        await BackendService.clearUser();
+        // Force reload to ensure clean state if needed
+        window.location.href = '/';
     };
 
     const updateProfile = async (updatedUser: UserProfile) => {
         setUser(updatedUser);
         await BackendService.saveUser(updatedUser);
+    };
+
+    const refreshSession = async () => {
+        const { data: { session } } = await supabase!.auth.getSession();
+        await handleUserSession(session?.user);
     };
 
     return (

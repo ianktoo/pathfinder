@@ -124,7 +124,7 @@ function AppRoutes() {
         {/* AuthView no longer needs onLogin prop for logic, just for optimistic local updates if desired, but we rely on listener now */}
         <Route path="/auth" element={
           <PublicRoute>
-            <AuthView onBack={() => navigate('/')} />
+            <AuthView onBack={() => navigate('/')} onLoginSuccess={() => navigate('/dashboard')} />
           </PublicRoute>
         } />
 
@@ -156,13 +156,25 @@ function AppRoutes() {
 
         <Route path="/community" element={
           <RequireAuth>
-            <CommunityView onBack={() => navigate('/dashboard')} onClone={handleCloneItinerary} />
+            <CommunityView
+              user={user!}
+              onNavigate={handleNavigate}
+              onLogout={logout}
+              onBack={() => navigate('/dashboard')}
+              onClone={handleCloneItinerary}
+            />
           </RequireAuth>
         } />
 
         <Route path="/profile" element={
           <RequireAuth>
-            <ProfileView user={user!} onBack={() => navigate('/dashboard')} onUpdate={updateProfile} onLogout={logout} />
+            <ProfileView
+              user={user!}
+              onBack={() => navigate('/dashboard')}
+              onUpdate={updateProfile}
+              onLogout={logout}
+              onNavigate={handleNavigate}
+            />
           </RequireAuth>
         } />
 

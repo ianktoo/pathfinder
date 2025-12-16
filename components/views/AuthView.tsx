@@ -9,16 +9,17 @@ import { isDev, logError } from '../../lib/utils';
 
 interface AuthViewProps {
   onBack: () => void;
-  // onLogin prop removed as it's no longer responsible for state setting
+  onLoginSuccess?: () => void;
 }
 
 type AuthMode = 'login' | 'register' | 'otp' | 'reset';
 
-export const AuthView = ({ onBack }: AuthViewProps) => {
+export const AuthView = ({ onBack, onLoginSuccess }: AuthViewProps) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -55,15 +56,14 @@ export const AuthView = ({ onBack }: AuthViewProps) => {
         }
       } else {
         // Login
-        console.log("Starting sign in flow...");
         const { user } = await AuthService.signInWithPassword(email, password);
-        console.log("Sign in returned user:", user?.email);
 
         if (user) {
           showToast(`Welcome back!`, 'success');
-          // We do NOT manually navigate here. 
-          // index.tsx onAuthStateChange will detect this and redirect.
           setIsLoading(false);
+          if (onLoginSuccess) {
+            onLoginSuccess();
+          }
         }
       }
     } catch (error: any) {
@@ -140,7 +140,7 @@ export const AuthView = ({ onBack }: AuthViewProps) => {
           />
 
           {(mode === 'login' || mode === 'register') && (
-            <div className="animate-in slide-in-from-top-2 fade-in">
+            <div className="animate-in slide-in-from-top-2 fade-in space-y-4">
               <Input
                 label="Password"
                 type="password"
@@ -149,6 +149,19 @@ export const AuthView = ({ onBack }: AuthViewProps) => {
                 placeholder="••••••••"
                 required
               />
+
+              {mode === 'login' && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-stone-300 text-orange-600 shadow-sm focus:border-orange-300 focus:ring focus:ring-orange-200 focus:ring-opacity-50"
+                  />
+                  <label htmlFor="rememberMe" className="text-sm font-medium text-stone-600 dark:text-stone-400">Remember me</label>
+                </div>
+              )}
             </div>
           )}
 

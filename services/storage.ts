@@ -312,23 +312,26 @@ export const BackendService = {
 
   // --- USER PROFILES ---
 
-  getUser: async (): Promise<UserProfile | null> => {
+  getUser: async (explicitUser?: any): Promise<UserProfile | null> => {
     let profile: UserProfile | null = null;
-    let sessionUser = null;
+    let sessionUser = explicitUser || null;
 
     if (isSupabaseConfigured()) {
       try {
-        // 1. Get Session first
-        const { data: { session } } = await supabase!.auth.getSession();
+        // 1. Get Session if not provided
+        if (!sessionUser) {
+          const { data: { session } } = await supabase!.auth.getSession();
+          if (session?.user) {
+            sessionUser = session.user;
+          }
+        }
 
-        if (session?.user) {
-          sessionUser = session.user;
-
+        if (sessionUser) {
           // 2. Fetch profile with strict timeout
           const profilePromise = supabase!
             .from('profiles')
             .select('*')
-            .eq('id', session.user.id)
+            .eq('id', sessionUser.id)
             .single();
 
           // Only wait 1 second for DB. If it's sleeping, we use session data.
