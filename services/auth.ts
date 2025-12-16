@@ -1,7 +1,26 @@
-import { supabase, isSupabaseConfigured } from './supabaseClient';
+import { supabase, isSupabaseConfigured, getSupabaseUrl } from './supabaseClient';
 import { UserProfile } from '../types';
 
-const AUTH_TIMEOUT_MS = 15000; // 15 seconds max wait time
+const AUTH_TIMEOUT_MS = 30000; // 30 seconds max wait time
+
+// Helper to diagnose connectivity issues
+const diagnoseConnection = async () => {
+  const url = getSupabaseUrl();
+  if (!url) return "Configuration missing";
+  try {
+    // Supabase projects usually respond to / with 200 or 404, but at least they respond
+    // We use a short timeout for the ping
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 5000);
+    // Ping health check endpoint instead of root
+    const healthUrl = `${url}/auth/v1/health`;
+    await fetch(healthUrl, { signal: controller.signal, mode: 'no-cors' });
+    clearTimeout(id);
+    return "Connection reachable";
+  } catch (e) {
+    return "Unable to reach Supabase URL. Check your internet or if the project is paused.";
+  }
+};
 
 // Helper to prevent infinite hangs
 const promiseWithTimeout = <T>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
@@ -22,7 +41,7 @@ const promiseWithTimeout = <T>(promise: Promise<T>, ms: number, label: string): 
 };
 
 export const AuthService = {
-  
+
   // Helper to ensure Supabase is ready
   checkConfig: () => {
     if (!isSupabaseConfigured()) {
@@ -32,68 +51,77 @@ export const AuthService = {
 
   signInWithPassword: async (email: string, password: string) => {
     AuthService.checkConfig();
-    return promiseWithTimeout(
+    try {
+      return await promiseWithTimeout(
         (async () => {
-            const { data, error } = await supabase!.auth.signInWithPassword({ email, password });
-            if (error) throw error;
-            return data;
+          const { data, error } = await supabase!.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          return data;
         })(),
         AUTH_TIMEOUT_MS,
         'Sign In'
-    );
+      );
+    } catch (error: any) {
+      // Enhance error with connectivity info if it's a timeout
+      if (error.message && error.message.includes('timed out')) {
+        const diagnosis = await diagnoseConnection();
+        throw new Error(`Sign In timed out. ${diagnosis}`);
+      }
+      throw error;
+    }
   },
 
   signUp: async (email: string, password: string, name?: string) => {
     AuthService.checkConfig();
     return promiseWithTimeout(
-        (async () => {
-            const { data, error } = await supabase!.auth.signUp({
-            email,
-            password,
-            options: {
-                data: {
-                full_name: name,
-                },
+      (async () => {
+        const { data, error } = await supabase!.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
             },
-            });
-            if (error) throw error;
-            return data;
-        })(),
-        AUTH_TIMEOUT_MS,
-        'Sign Up'
+          },
+        });
+        if (error) throw error;
+        return data;
+      })(),
+      AUTH_TIMEOUT_MS,
+      'Sign Up'
     );
   },
 
   signInWithOtp: async (email: string) => {
     AuthService.checkConfig();
     return promiseWithTimeout(
-        (async () => {
-            const { data, error } = await supabase!.auth.signInWithOtp({
-            email,
-            options: {
-                emailRedirectTo: window.location.origin, 
-            },
-            });
-            if (error) throw error;
-            return data;
-        })(),
-        AUTH_TIMEOUT_MS,
-        'OTP Request'
+      (async () => {
+        const { data, error } = await supabase!.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        return data;
+      })(),
+      AUTH_TIMEOUT_MS,
+      'OTP Request'
     );
   },
 
   resetPasswordForEmail: async (email: string) => {
     AuthService.checkConfig();
     return promiseWithTimeout(
-        (async () => {
-            const { data, error } = await supabase!.auth.resetPasswordForEmail(email, {
-            redirectTo: `${window.location.origin}/reset-password`,
-            });
-            if (error) throw error;
-            return data;
-        })(),
-        AUTH_TIMEOUT_MS,
-        'Password Reset'
+      (async () => {
+        const { data, error } = await supabase!.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        return data;
+      })(),
+      AUTH_TIMEOUT_MS,
+      'Password Reset'
     );
   },
 
@@ -108,10 +136,10 @@ export const AuthService = {
   getCurrentUser: async () => {
     if (!isSupabaseConfigured()) return null;
     try {
-        const { data: { user } } = await promiseWithTimeout(supabase!.auth.getUser(), 5000, 'Get User') as any;
-        return user;
+      const { data: { user } } = await promiseWithTimeout(supabase!.auth.getUser(), 5000, 'Get User') as any;
+      return user;
     } catch (e) {
-        return null;
+      return null;
     }
   },
 
