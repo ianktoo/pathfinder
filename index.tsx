@@ -14,9 +14,10 @@ import { AuthView } from './components/views/AuthView';
 import { OnboardingView } from './components/views/OnboardingView';
 import { Dashboard } from './components/views/Dashboard';
 import { CreateItineraryView } from './components/views/CreateItineraryView';
-import { SettingsView } from './components/views/SettingsView';
+
 import { CommunityView } from './components/views/CommunityView';
 import { ProfileView } from './components/views/ProfileView';
+import { ConfigureView } from './components/views/ConfigureView';
 
 import { ToastProvider } from './components/ui/toast';
 import { CookieConsent } from './components/ui/cookie-consent';
@@ -32,7 +33,6 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 function AppRoutes() {
   const { user, isLoading, logout, updateProfile } = useAuth();
-  const [showSettings, setShowSettings] = useState(false);
   const [savedItineraries, setSavedItineraries] = useState<Itinerary[]>([]);
 
   const navigate = useNavigate();
@@ -59,6 +59,7 @@ function AppRoutes() {
       case 'about': navigate('/about'); break;
       case 'privacy': navigate('/privacy'); break;
       case 'onboarding': navigate('/onboarding'); break;
+      case 'configure': navigate('/configure'); break;
       default: navigate('/');
     }
   };
@@ -141,7 +142,7 @@ function AppRoutes() {
               savedItineraries={savedItineraries}
               onCreateClick={() => navigate('/create')}
               onLogout={logout}
-              onOpenSettings={() => setShowSettings(true)}
+              onOpenSettings={() => navigate('/configure')}
               onNavigate={handleNavigate}
               onRemix={handleRemixItinerary}
             />
@@ -178,10 +179,14 @@ function AppRoutes() {
           </RequireAuth>
         } />
 
+        <Route path="/configure" element={
+          <RequireAuth>
+            <ConfigureView user={user!} onBack={() => navigate('/dashboard')} />
+          </RequireAuth>
+        } />
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-
-      {showSettings && <SettingsView onClose={() => setShowSettings(false)} />}
     </>
   );
 }

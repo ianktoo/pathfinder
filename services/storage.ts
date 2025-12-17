@@ -1,4 +1,4 @@
-import { Itinerary, UserProfile, ItineraryItem } from "../types/index";
+import { Itinerary, UserProfile, ItineraryItem, ItineraryOption } from "../types/index";
 import { logError } from "../lib/utils";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
 import { AuthService } from "./auth";
@@ -39,6 +39,8 @@ const isValidUUID = (uuid: string) => {
 
 export const BackendService = {
 
+  isConfigured: () => isSupabaseConfigured(),
+
   // --- ITINERARIES ---
 
   saveItinerary: async (itinerary: Itinerary): Promise<boolean> => {
@@ -54,85 +56,97 @@ export const BackendService = {
 
       // 2. Try Supabase (Relational Save)
       if (isSupabaseConfigured()) {
-        const { data: { user } } = await supabase!.auth.getUser();
-        if (user) {
+        const dbOperation = async () => {
+          const { data: { user } } = await supabase!.auth.getUser();
+          if (user) {
+            // A. Save the Itinerary Header
+            const { error: itinError } = await supabase!
+              .from('itineraries')
+              .upsert({
+                id: validId,
+                user_id: user.id,
+                title: itineraryToSave.title,
+                date: itineraryToSave.date,
+                mood: itineraryToSave.mood,
+                tags: itineraryToSave.tags,
+                is_public: itineraryToSave.shared || false,
+                likes_count: itineraryToSave.likes || 0,
+                // Schema mismatch fix: Table has 'verified', not 'verified_community'
+                verified: itineraryToSave.verified_community || false
+              }, { onConflict: 'id' });
 
-          // A. Save the Itinerary Header
-          const { error: itinError } = await supabase!
-            .from('itineraries')
-            .upsert({
-              id: validId,
-              user_id: user.id,
-              title: itineraryToSave.title,
-              date: itineraryToSave.date,
-              mood: itineraryToSave.mood,
-              tags: itineraryToSave.tags,
-              is_public: itineraryToSave.shared || false,
-              likes_count: itineraryToSave.likes || 0,
-              verified_community: itineraryToSave.verified_community || false
-            }, { onConflict: 'id' });
+            if (itinError) throw itinError;
 
-          if (itinError) throw itinError;
+            // B. Handle Items & Places Normalization (Bulk Optimized)
+            if (itineraryToSave.items && itineraryToSave.items.length > 0) {
 
-          // B. Handle Items & Places Normalization
-          if (itineraryToSave.items && itineraryToSave.items.length > 0) {
+              // 1. Prepare unique places to avoid duplicates in payload
+              const uniquePlaces = new Map();
+              itineraryToSave.items.forEach(item => {
+                if (!uniquePlaces.has(item.locationName)) {
+                  uniquePlaces.set(item.locationName, {
+                    name: item.locationName,
+                    category: item.category,
+                    rating: item.rating || 0, // Ensure numeric
+                    review_count: item.reviewCount || 0, // Ensure integer
+                    price: item.price,
+                    image_url: item.imageUrl,
+                    verified: item.verified || false
+                  });
+                }
+              });
 
-            // 1. Upsert Places (Businesses)
-            for (const item of itineraryToSave.items) {
+              // 2. Bulk Upsert Places and get IDs back
+              const { data: savedPlaces, error: placesError } = await supabase!
+                .from('places')
+                .upsert(Array.from(uniquePlaces.values()), { onConflict: 'name' })
+                .select('id, name');
+
+              if (placesError) throw placesError;
+
+              // 3. Map names to IDs for quick lookup
+              const placeIdMap = new Map();
+              savedPlaces?.forEach((p: any) => placeIdMap.set(p.name, p.id));
+
+              // 4. Clear existing items for this itinerary
               await supabase!
-                .from('places')
-                .upsert({
-                  name: item.locationName,
-                  category: item.category,
-                  rating: item.rating,
-                  review_count: item.reviewCount,
-                  price: item.price,
-                  image_url: item.imageUrl,
-                  verified: item.verified
-                }, { onConflict: 'name' });
-            }
+                .from('itinerary_items')
+                .delete()
+                .eq('itinerary_id', validId);
 
-            // 2. Clear existing items for this itinerary to prevent duplicates
-            await supabase!
-              .from('itinerary_items')
-              .delete()
-              .eq('itinerary_id', validId);
+              // 5. Prepare and Bulk Insert Items
+              const newLinks = itineraryToSave.items
+                .map((item, index) => {
+                  const placeId = placeIdMap.get(item.locationName);
+                  if (!placeId) return null; // Should not happen given upsert above
 
-            // 3. Link Places to Itinerary via itinerary_items
-            const newLinks = [];
-            for (let i = 0; i < itineraryToSave.items.length; i++) {
-              const item = itineraryToSave.items[i];
+                  return {
+                    itinerary_id: validId,
+                    place_id: placeId,
+                    time: item.time,
+                    activity: item.activity,
+                    description: item.description,
+                    order_index: index,
+                    completed: item.completed || false,
+                    user_review: item.userReview || null // valid jsonb or null
+                  };
+                })
+                .filter(Boolean); // Remove nulls
 
-              // Get the place ID for this item
-              const { data: placeData } = await supabase!
-                .from('places')
-                .select('id')
-                .eq('name', item.locationName)
-                .single();
+              if (newLinks.length > 0) {
+                const { error: itemsError } = await supabase!
+                  .from('itinerary_items')
+                  .insert(newLinks);
 
-              if (placeData) {
-                newLinks.push({
-                  itinerary_id: validId,
-                  place_id: placeData.id,
-                  time: item.time,
-                  activity: item.activity,
-                  description: item.description,
-                  order_index: i,
-                  completed: item.completed || false,
-                  user_review: item.userReview // JSONB for the review itself
-                });
+                if (itemsError) throw itemsError;
               }
             }
-
-            if (newLinks.length > 0) {
-              const { error: linkError } = await supabase!
-                .from('itinerary_items')
-                .insert(newLinks);
-
-              if (linkError) console.error("Link error", linkError);
-            }
           }
-        }
+        };
+
+        // Increased timeout to 15s to handle slower connections/larger payloads
+        const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('DB Save Timeout')), 15000));
+        await Promise.race([dbOperation(), timeout]);
       }
       return true;
     } catch (e) {
@@ -330,6 +344,7 @@ export const BackendService = {
             )
           `)
           .eq('is_public', true)
+          .order('is_featured', { ascending: false })
           .order('likes_count', { ascending: false })
           .limit(20);
 
@@ -360,7 +375,8 @@ export const BackendService = {
               author: row.profiles?.name || 'Explorer',
               likes: row.likes_count,
               shared: true,
-              verified_community: row.verified_community
+              verified_community: row.verified_community,
+              featured: row.is_featured || false
             };
           });
         }
@@ -482,5 +498,8 @@ export const BackendService = {
   clearUser: async () => {
     localStorage.removeItem('user_profile');
     localStorage.removeItem('saved_itineraries');
-  }
+  },
+
+  // --- CONFIGURATION ---
+  // Option management has been moved to services/options.ts for better separation of concerns.
 };

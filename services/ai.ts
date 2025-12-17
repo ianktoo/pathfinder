@@ -26,7 +26,7 @@ export class GeminiProvider extends BaseLLM {
 
     const response = await this.ai.models.generateContent({
       model: this.modelName,
-      contents: prompt,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: config
     });
 
@@ -48,20 +48,27 @@ export class RunnableSequence {
   async invoke(variables: Record<string, string>): Promise<any> {
     const prompt = this.template.format(variables);
     const result = await this.model.invoke(prompt, this.schema);
-    return this.schema ? JSON.parse(result) : result;
+
+    // helper to strip markdown code blocks
+    const cleanResult = result.replace(/```json\n?|\n?```/g, '').trim();
+
+    return this.schema ? JSON.parse(cleanResult) : cleanResult;
   }
 }
 
+// Helper to safely access environment variables in Vite or Node
+const getEnv = (key: string): string | undefined => {
+  // @ts-ignore
+  const viteEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env[key] : undefined;
+  const processEnv = typeof process !== 'undefined' && process.env ? process.env[key] : undefined;
+  return viteEnv || processEnv;
+};
+
 export const ModelRegistry = {
-  currentModelId: 'gemini-1.5-flash' as ModelID,
+  currentModelId: (getEnv('VITE_GEMINI_MODEL') || 'gemini-1.5-flash-001') as ModelID,
 
   getProvider: (): BaseLLM => {
-    // Check both standard process.env and Vite's import.meta.env
-    const envKey = process.env.VITE_GEMINI_API_KEY;
-    // @ts-ignore
-    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
-
-    const apiKey = envKey || viteKey || '';
+    const apiKey = getEnv('VITE_GEMINI_API_KEY') || '';
 
     if (!apiKey) {
       console.warn("Gemini API Key is missing. Check .env file.");
@@ -75,28 +82,19 @@ export const ModelRegistry = {
   },
 
   hasApiKey: (): boolean => {
-    // Check both standard process.env and Vite's import.meta.env
-    const envKey = process.env.VITE_GEMINI_API_KEY;
-
-    console.log("Gemini API Key:", envKey);
-    // @ts-ignore
-    const viteKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GEMINI_API_KEY : undefined;
-
-    const key = envKey || viteKey;
-
-    console.log("Gemini API Key (final):", key);
+    const key = getEnv('VITE_GEMINI_API_KEY');
     return !!key && key.length > 0;
   },
 
   init: () => {
     const saved = localStorage.getItem('preferred_model') as ModelID;
-    const validModels: ModelID[] = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+    const validModels: ModelID[] = ['gemini-1.5-flash-001', 'gemini-1.5-pro-001', 'gemini-2.0-flash-exp'];
 
     if (saved && validModels.includes(saved)) {
       ModelRegistry.currentModelId = saved;
     } else {
       // Fallback or override invalid defaults
-      ModelRegistry.currentModelId = 'gemini-1.5-flash';
+      ModelRegistry.currentModelId = (getEnv('VITE_GEMINI_MODEL') || 'gemini-1.5-flash-001') as ModelID;
     }
   }
 };
