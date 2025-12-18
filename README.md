@@ -1,63 +1,27 @@
-# Pathfinder: AI Itinerary Planner
+# Pathfinder
 
-**Pathfinder** is a "Resilient Hub" application designed to curate hyper-local, personalized itineraries using Generative AI (Google Gemini). It features a mobile-first design, offline capabilities, and a mock integration with Yelp data.
+![Pathfinder Hero](public/pathfinder_hero.png)
 
-## Features
+**Pathfinder** is an AI-powered itinerary planner that creates hyper-local, personalized day trips in seconds. It combines the power of Google Gemini with real local business data to act as your knowledgeable local friend.
 
-*   **AI Engine**: Uses Gemini 2.5 Flash (Speed) or Gemini 3 Pro (Deep Reasoning) to generate structured plans.
-*   **Resilience**: Itineraries are cached to `localStorage` for offline access.
-*   **Modular Architecture**: Built with scalable React components and isolated services.
-*   **Theming**: Mobile-first, Dark Mode supported, "Solar Flare" orange aesthetic.
+## 🚀 Getting Started
 
-## Project Structure
+1.  **Clone the repo**
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+3.  **Configure Environment**:
+    Copy `.env.example` to `.env` and add your API keys.
+4.  **Run Development Server**:
+    ```bash
+    npm run dev
+    ```
 
-```
-/
-├── components/
-│   ├── ui/             # Reusable "shadcn-like" primitives (Button, Input, Badge)
-│   └── views/          # Smart feature components (Dashboard, LandingPage)
-├── services/
-│   ├── ai.ts           # AI Provider Logic (LangChain pattern)
-│   └── storage.ts      # LocalStorage persistence wrapper
-├── lib/
-│   └── utils.ts        # Tailwind class merger (cn)
-├── types/
-│   └── index.ts        # Shared TypeScript interfaces
-├── index.tsx           # Main application entry & router
-└── index.html          # Base HTML
-```
+## 📚 Documentation
 
-## How to Extend (Plug & Play)
+Detailed documentation has been moved to the `docs/` folder:
 
-### 1. Connecting a Real Backend
-Navigate to `services/storage.ts`. currently, `BackendService` writes to `localStorage`.
-To connect Supabase or Firebase:
-1.  Update the functions `saveItinerary` and `getSavedItineraries` to call your API.
-2.  The UI components (`Dashboard.tsx`) allow `isLoading` states, so you can easily swap synchronous local storage for async API calls.
-
-### 2. Integrating Real Yelp API
-Navigate to `components/views/CreateItineraryView.tsx`.
-Currently, the AI **hallucinates** realistic Yelp data (Ratings, Price) as a mock.
-To use real data:
-1.  In the `generateItinerary` function, after getting the AI response, iterate through `data.items`.
-2.  Call your backend proxy (to avoid CORS) which queries `https://api.yelp.com/v3/businesses/search`.
-3.  Merge the real Yelp data (image_url, rating) into the `ItineraryItem` object before saving.
-
-### 3. Adding New AI Models
-Navigate to `services/ai.ts`.
-The `GeminiProvider` class implements a standard `BaseLLM` interface.
-To add OpenAI or Anthropic:
-1.  Create a new class `OpenAIProvider extends BaseLLM`.
-2.  Update `ModelRegistry` to allow selecting this new provider.
-
-## Deployment
-
-### Vercel
-This project includes a `vercel.json` file to handle Single Page Application (SPA) routing. This configuration rewrites all requests to `index.html`, preventing 404 errors when refreshing pages like `/dashboard`.
-
-## Tech Stack
-*   **Framework**: React 19
-*   **Build**: Vite (Simulated ES Modules)
-*   **Styling**: Tailwind CSS + clsx/tailwind-merge
-*   **AI**: @google/genai SDK
-*   **Icons**: Lucide React
+*   **[Project Submission & Details](docs/SUBMISSION.md)**: Our hackathon submission write-up, including features, challenges, and future plans.
+*   **[Backend Setup Guide](docs/SUPABASE_SETUP.md)**: Instructions for setting up Supabase and Google Gemini.
+*   **[Database Functions](docs/SUPABASE_FUNCTIONS.sql)**: SQL reference for necessary database schemas and functions.
