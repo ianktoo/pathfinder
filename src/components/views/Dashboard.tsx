@@ -118,15 +118,18 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
                 </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-10 pb-24">
-
+            {/* Fixed Header */}
+            <div className="flex-none p-6 md:p-8 border-b border-stone-100 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                 <DashboardHeader
                     activeTab={activeTab}
                     user={user}
                     itineraryCount={localItineraries.length}
                     onCreateClick={onCreateClick}
                 />
+            </div>
 
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-32 md:pb-12 space-y-8 scroll-smooth">
                 {activeTab === 'overview' && (
                     <DashboardStats totalPlans={localItineraries.length} vibe={user.personality} />
                 )}

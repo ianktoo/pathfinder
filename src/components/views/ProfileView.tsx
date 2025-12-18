@@ -64,20 +64,22 @@ export const ProfileView = ({ user, onBack, onUpdate, onLogout, onNavigate }: Pr
                 </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-6 md:p-10 pb-24">
-                <div className="max-w-3xl mx-auto w-full space-y-8">
+            {/* Fixed Header */}
+            <div className="flex-none p-6 md:p-8 border-b border-stone-100 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-md z-10 flex items-center gap-4">
+                <div className="hidden md:flex w-16 h-16 rounded-full bg-stone-200 dark:bg-neutral-800 items-center justify-center font-black text-2xl text-stone-500 dark:text-stone-400">
+                    {user.name[0]}
+                </div>
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-black text-stone-900 dark:text-white uppercase tracking-tight">
+                        Profile & Settings
+                    </h1>
+                    <p className="text-stone-500 dark:text-stone-400 font-medium">Manage your identity and preferences</p>
+                </div>
+            </div>
 
-                    <div className="hidden md:flex items-center gap-4 mb-8">
-                        <div className="w-20 h-20 rounded-full bg-stone-200 dark:bg-neutral-800 flex items-center justify-center font-black text-3xl text-stone-500 dark:text-stone-400">
-                            {user.name[0]}
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-black text-stone-900 dark:text-white uppercase tracking-tight">
-                                Profile & Settings
-                            </h1>
-                            <p className="text-stone-500 dark:text-stone-400 font-medium">Manage your identity and preferences</p>
-                        </div>
-                    </div>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-32 md:pb-12 scroll-smooth">
+                <div className="max-w-3xl space-y-8">
 
                     <section className="bg-white dark:bg-neutral-900 p-6 rounded-3xl border border-stone-200 dark:border-neutral-800 shadow-sm">
                         <h2 className="text-lg font-black text-stone-900 dark:text-white mb-6 flex items-center gap-2">

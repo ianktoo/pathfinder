@@ -157,7 +157,13 @@ export function AppRoutes() {
             path: "/create",
             element: (
                 <RequireAuth>
-                    <CreateItineraryView user={user!} onClose={() => navigate('/dashboard')} onSave={handleSaveItinerary} />
+                    <CreateItineraryView
+                        user={user!}
+                        onClose={() => navigate('/dashboard')}
+                        onSave={handleSaveItinerary}
+                        onNavigate={handleNavigate}
+                        onLogout={logout}
+                    />
                 </RequireAuth>
             )
         },
@@ -193,7 +199,12 @@ export function AppRoutes() {
             path: "/configure",
             element: (
                 <RequireAuth>
-                    <ConfigureView user={user!} onBack={() => navigate('/dashboard')} />
+                    <ConfigureView
+                        user={user!}
+                        onBack={() => navigate('/dashboard')}
+                        onNavigate={handleNavigate}
+                        onLogout={logout}
+                    />
                 </RequireAuth>
             )
         },

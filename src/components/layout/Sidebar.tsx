@@ -45,8 +45,8 @@ export const Sidebar = ({ user, activeTab, onNavigate, onDashboardTabChange, onL
 
     return (
         <>
-            <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-neutral-900 border-r border-stone-200 dark:border-neutral-800 p-6 flex-shrink-0 h-screen sticky top-0">
-                <div className="flex items-center gap-2 text-orange-600 mb-10 cursor-pointer" onClick={() => onNavigate('dashboard')}>
+            <aside className="hidden md:flex flex-col w-64 glass border-r-0 p-8 flex-shrink-0 h-screen sticky top-0">
+                <div className="flex items-center gap-2 text-primary-600 mb-10 cursor-pointer" onClick={() => onNavigate('dashboard')}>
                     <Flame className="w-8 h-8" />
                     <span className="font-black text-xl tracking-tighter text-stone-900 dark:text-white">PATHFINDER</span>
                 </div>

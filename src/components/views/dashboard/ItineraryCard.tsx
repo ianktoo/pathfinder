@@ -26,7 +26,7 @@ export const ItineraryCard = ({ it, onClick, onRemix, onShare }: ItineraryCardPr
     return (
         <div
             onClick={() => onClick(it)}
-            className="group relative bg-white dark:bg-neutral-900 rounded-3xl border border-stone-200 dark:border-neutral-800 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 transition-all overflow-hidden cursor-pointer h-full flex flex-col"
+            className="group relative glass rounded-3xl shadow-sm hover:shadow-xl hover:shadow-primary-500/10 transition-all overflow-hidden cursor-pointer h-full flex flex-col"
         >
             <div className="h-44 relative overflow-hidden bg-stone-200 dark:bg-neutral-800">
                 <img

@@ -1,24 +1,29 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Type } from "@google/genai";
-import { X, Check, MapPin, ShoppingBag, Coffee, Utensils, Music, Camera, LocateFixed, ArrowLeft } from 'lucide-react';
+import { X, Check, MapPin, ShoppingBag, Coffee, Utensils, Music, Camera, LocateFixed, ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Itinerary, UserProfile } from '../../types';
 import { ModelRegistry, PromptTemplate, RunnableSequence } from '../../services/ai';
 import { ItineraryDetailModal } from './ItineraryDetailModal';
 import { BackendService } from '../../services/storage';
-import { OptionService } from '../../services/options'; // Added new service
+import { OptionService } from '../../services/options';
 import { LocationService } from '../../services/location';
-import { ItineraryOption } from '../../types';
+import { ItineraryOption, ViewState } from '../../types';
 import { useToast } from '../ui/toast';
+import { DashboardLayout } from '../layout/DashboardLayout';
 
 interface CreateItineraryViewProps {
     user: UserProfile;
     onClose: () => void;
     onSave: (itinerary: Itinerary) => void;
+    onNavigate: (view: ViewState) => void;
+    onLogout: () => void;
 }
 
-export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryViewProps) => {
+export const CreateItineraryView = ({ user, onClose, onSave, onNavigate, onLogout }: CreateItineraryViewProps) => {
+
+    // ... (keep helper functions like getPlaceImage the same)
 
     const getPlaceImage = (category: string) => {
         const map: Record<string, string> = {
@@ -275,30 +280,35 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
 
     // Input Form
     return (
-        <div className="h-full flex flex-col p-6 md:p-12 overflow-y-auto bg-stone-50 dark:bg-neutral-950">
-            <div className="max-w-2xl mx-auto w-full pb-20">
-                <div className="flex justify-between items-start mb-8">
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => window.location.href = '/dashboard'}
-                            className="p-2 -ml-2 rounded-full hover:bg-stone-100 dark:hover:bg-neutral-800 text-stone-500 transition-colors"
-                            title="Back to Dashboard"
-                        >
-                            <ArrowLeft className="w-6 h-6" />
-                        </button>
-                        <h2 className="text-3xl font-black text-stone-900 dark:text-white uppercase tracking-tight leading-none">Curate<br />Adventure</h2>
-                    </div>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-neutral-800"><X className="w-6 h-6" /></button>
+        <DashboardLayout
+            user={user}
+            activeTab="home" // Default or create a 'create' tab? For now 'home' or no highlight.
+            onNavigate={onNavigate}
+            onLogout={onLogout}
+        >
+            {/* Fixed Header */}
+            <div className="flex-none p-6 md:p-8 border-b border-stone-100 dark:border-white/10 bg-white/50 dark:bg-black/20 backdrop-blur-md z-10 flex justify-between items-start">
+                <div className="flex items-center gap-3">
+                    <h2 className="text-3xl md:text-4xl font-black text-stone-900 dark:text-white uppercase tracking-tight leading-none">Curate<br />Adventure</h2>
                 </div>
+                {/* Close button not strictly needed if we have sidebar, but good for modal feel? 
+                    Actually, if it's a page, maybe we don't need 'Close' since we have sidebar nav. 
+                    But let's keep it consistent if user wants 'Back'. 
+                    Wait, previous code had 'Back to Dashboard' AND 'Close'. 
+                    I'll keep the logic simple: Just the title here. The inputs are below.
+                */}
+            </div>
 
-                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 md:p-8 pb-32 space-y-8 scroll-smooth">
+                <div className="max-w-3xl mx-auto w-full pb-20 space-y-10">
 
                     {/* Location Selector */}
-                    <section className="bg-white dark:bg-neutral-900 p-4 rounded-2xl border border-stone-200 dark:border-neutral-800 shadow-sm flex items-center justify-between">
+                    <section className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-stone-200 dark:border-neutral-800 shadow-sm flex items-center justify-between group hover:border-orange-500/30 transition-colors">
                         <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">Target City</label>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-2">Target City</label>
                             <input
-                                className="text-lg font-black bg-transparent outline-none text-stone-900 dark:text-white placeholder-stone-300"
+                                className="text-2xl md:text-3xl font-black bg-transparent outline-none text-stone-900 dark:text-white placeholder-stone-300 w-full"
                                 value={targetCity}
                                 onChange={(e) => setTargetCity(e.target.value)}
                                 placeholder="Where are you going?"
@@ -306,20 +316,20 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                         </div>
                         <Button
                             variant="ghost"
-                            className="w-auto h-auto p-3"
+                            className="w-12 h-12 p-0 rounded-xl bg-orange-50 text-orange-600 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:hover:bg-orange-900/40"
                             onClick={handleDetectLocation}
                             isLoading={detectingLocation}
                             title="Use Current Location"
                         >
-                            <LocateFixed className="w-5 h-5" />
+                            <LocateFixed className="w-6 h-6" />
                         </Button>
                     </section>
 
                     {/* Custom Name Input */}
                     <section>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-1">Trip Name (Optional)</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-2">Trip Name (Optional)</label>
                         <input
-                            className="w-full text-lg font-black bg-transparent border-b-2 border-stone-200 focus:border-orange-500 outline-none py-2 text-stone-900 dark:text-white placeholder-stone-300 transition-colors"
+                            className="w-full text-xl font-bold bg-transparent border-b-2 border-stone-200 focus:border-orange-500 outline-none py-3 text-stone-900 dark:text-white placeholder-stone-300 transition-colors"
                             value={customName}
                             onChange={(e) => setCustomName(e.target.value)}
                             placeholder="e.g. Birthday Bash 2024"
@@ -327,20 +337,20 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                     </section>
 
                     {/* Mood Selector */}
-                    <section ref={moodSectionRef}>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Vibe & Mood</label>
+                    <section ref={moodSectionRef} className="space-y-4">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Vibe & Mood</label>
                         <div className="flex flex-wrap gap-3">
                             {optionsLoading ? (
                                 Array.from({ length: 5 }).map((_, i) => (
-                                    <div key={i} className="h-11 w-24 bg-stone-200 dark:bg-neutral-800 rounded-full animate-pulse" />
+                                    <div key={i} className="h-12 w-28 bg-stone-200 dark:bg-neutral-800 rounded-full animate-pulse" />
                                 ))
                             ) : (
                                 moods.map(m => (
                                     <button
                                         key={m}
                                         onClick={() => setMood(m)}
-                                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all ${mood === m
-                                            ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20 scale-105'
+                                        className={`px-8 py-4 rounded-full text-base font-bold transition-all transform hover:scale-105 ${mood === m
+                                            ? 'bg-orange-600 text-white shadow-xl shadow-orange-600/20 scale-105'
                                             : 'bg-white dark:bg-neutral-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-neutral-700 hover:border-orange-500'
                                             }`}
                                     >
@@ -352,12 +362,12 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                     </section>
 
                     {/* Must Haves Selector */}
-                    <section>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Must Include (Select Multiple)</label>
-                        <div className="grid grid-cols-3 gap-3">
+                    <section className="space-y-4">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Must Include (Select Multiple)</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {optionsLoading ? (
                                 Array.from({ length: 6 }).map((_, i) => (
-                                    <div key={i} className="h-24 rounded-2xl bg-stone-200 dark:bg-neutral-800 animate-pulse" />
+                                    <div key={i} className="h-28 rounded-2xl bg-stone-200 dark:bg-neutral-800 animate-pulse" />
                                 ))
                             ) : (
                                 placeTypes.map((type) => {
@@ -366,13 +376,13 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                                         <button
                                             key={type.id}
                                             onClick={() => toggleType(type.id)}
-                                            className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all gap-2 ${isSelected
-                                                ? 'border-orange-600 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400'
-                                                : 'border-stone-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-stone-500 hover:border-orange-300'
+                                            className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all gap-3 h-32 ${isSelected
+                                                ? 'border-orange-600 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 shadow-md'
+                                                : 'border-stone-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 text-stone-500 hover:border-orange-300 dark:hover:border-orange-900/50'
                                                 }`}
                                         >
-                                            <type.icon className={`w-6 h-6 ${isSelected ? 'stroke-2' : 'stroke-1'}`} />
-                                            <span className="text-xs font-bold">{type.label}</span>
+                                            <type.icon className={`w-8 h-8 ${isSelected ? 'stroke-2' : 'stroke-1'}`} />
+                                            <span className="text-sm font-bold">{type.label}</span>
                                         </button>
                                     );
                                 })
@@ -381,10 +391,10 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                     </section>
 
                     {/* Stop Count Slider */}
-                    <section>
-                        <div className="flex justify-between items-center mb-3">
-                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Number of Stops</label>
-                            <span className="text-sm font-black text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-3 py-1 rounded-lg">{stopCount} Places</span>
+                    <section className="space-y-4 bg-stone-50 dark:bg-neutral-900/50 p-6 rounded-2xl border border-stone-100 dark:border-neutral-800">
+                        <div className="flex justify-between items-center mb-2">
+                            <label className="text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Length of Trip</label>
+                            <span className="text-sm font-black text-orange-600 dark:text-orange-400 bg-white dark:bg-orange-900/20 px-4 py-2 rounded-lg shadow-sm border border-stone-100 dark:border-none">{stopCount} Places</span>
                         </div>
                         <input
                             type="range"
@@ -392,17 +402,17 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                             max="8"
                             value={stopCount}
                             onChange={(e) => setStopCount(parseInt(e.target.value))}
-                            className="w-full h-2 bg-stone-200 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-600"
+                            className="w-full h-3 bg-stone-200 dark:bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-600"
                         />
-                        <div className="flex justify-between text-xs font-bold text-stone-400 mt-2">
-                            <span>Quick Trip</span>
-                            <span>Full Day</span>
+                        <div className="flex justify-between text-xs font-bold text-stone-400 pt-1">
+                            <span>Quick Trip (2)</span>
+                            <span>Full Day (8)</span>
                         </div>
                     </section>
 
-                    <div className="grid grid-cols-2 gap-6">
-                        <section>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Timeframe</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <section className="space-y-3">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Timeframe</label>
                             <div className="space-y-2">
                                 {optionsLoading ? (
                                     Array.from({ length: 3 }).map((_, i) => (
@@ -410,13 +420,13 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                                     ))
                                 ) : (
                                     durations.map(d => (
-                                        <button key={d} onClick={() => setDuration(d)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all ${duration === d ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400' : 'border-stone-100 dark:border-neutral-800 bg-white dark:bg-neutral-900'}`}>{d}</button>
+                                        <button key={d} onClick={() => setDuration(d)} className={`w-full text-left px-5 py-4 rounded-xl text-sm font-bold border-2 transition-all ${duration === d ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400' : 'border-stone-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-stone-50'}`}>{d}</button>
                                     ))
                                 )}
                             </div>
                         </section>
-                        <section>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Group Size</label>
+                        <section className="space-y-3">
+                            <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Group Size</label>
                             <div className="space-y-2">
                                 {optionsLoading ? (
                                     Array.from({ length: 3 }).map((_, i) => (
@@ -424,26 +434,26 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                                     ))
                                 ) : (
                                     groups.map(g => (
-                                        <button key={g} onClick={() => setGroupSize(g)} className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all ${groupSize === g ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400' : 'border-stone-100 dark:border-neutral-800 bg-white dark:bg-neutral-900'}`}>{g}</button>
+                                        <button key={g} onClick={() => setGroupSize(g)} className={`w-full text-left px-5 py-4 rounded-xl text-sm font-bold border-2 transition-all ${groupSize === g ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-400' : 'border-stone-100 dark:border-neutral-800 bg-white dark:bg-neutral-900 hover:bg-stone-50'}`}>{g}</button>
                                     ))
                                 )}
                             </div>
                         </section>
                     </div>
 
-                    <section>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400 mb-3">Price Point</label>
-                        <div className="flex rounded-xl bg-stone-100 dark:bg-neutral-800 p-1">
+                    <section className="space-y-3">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-stone-500 dark:text-stone-400">Price Point</label>
+                        <div className="flex rounded-2xl bg-stone-100 dark:bg-neutral-900 p-1.5 border border-stone-200 dark:border-neutral-800">
                             {optionsLoading ? (
                                 Array.from({ length: 3 }).map((_, i) => (
-                                    <div key={i} className="flex-1 h-10 m-1 bg-white/50 dark:bg-neutral-700/50 rounded-lg animate-pulse" />
+                                    <div key={i} className="flex-1 h-12 m-1 bg-white/50 dark:bg-neutral-700/50 rounded-lg animate-pulse" />
                                 ))
                             ) : (
                                 budgets.map(b => (
                                     <button
                                         key={b}
                                         onClick={() => setBudget(b)}
-                                        className={`flex-1 py-3 rounded-lg text-sm font-black transition-all ${budget === b ? 'bg-white dark:bg-neutral-700 text-stone-900 dark:text-white shadow-sm' : 'text-stone-400'}`}
+                                        className={`flex-1 py-4 rounded-xl text-base font-black transition-all ${budget === b ? 'bg-white dark:bg-neutral-800 text-stone-900 dark:text-white shadow-sm' : 'text-stone-400 hover:text-stone-600'}`}
                                     >
                                         {b}
                                     </button>
@@ -452,13 +462,18 @@ export const CreateItineraryView = ({ user, onClose, onSave }: CreateItineraryVi
                         </div>
                     </section>
 
-                    <div className="pt-6">
-                        <Button onClick={generateItinerary} disabled={loading} isLoading={loading}>
-                            {loading ? loadingStep : 'Generate Itinerary'}
+                    <div className="pt-8 sticky bottom-0 bg-gradient-to-t from-stone-50 via-stone-50 to-transparent dark:from-neutral-950 dark:via-neutral-950 pb-6 -mx-4 px-4">
+                        <Button
+                            onClick={generateItinerary}
+                            disabled={loading}
+                            isLoading={loading}
+                            className="w-full py-6 text-xl rounded-2xl shadow-xl shadow-orange-600/20"
+                        >
+                            {loading ? loadingStep : <><Sparkles className="w-5 h-5 mr-2" /> Generate Itinerary</>}
                         </Button>
                     </div>
                 </div>
             </div>
-        </div>
+        </DashboardLayout>
     );
 };

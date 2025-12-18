@@ -11,7 +11,7 @@ interface DashboardHeaderProps {
 
 export const DashboardHeader = ({ activeTab, user, itineraryCount, onCreateClick }: DashboardHeaderProps) => {
     return (
-        <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-end gap-4">
             <div>
                 <h1 className="text-2xl md:text-3xl font-black text-stone-900 dark:text-white uppercase tracking-tight">
                     {activeTab === 'overview' ? 'Your Dashboard' : 'My Library'}

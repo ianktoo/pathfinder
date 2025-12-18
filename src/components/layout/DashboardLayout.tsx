@@ -35,13 +35,13 @@ export const DashboardLayout = ({
                 onOpenSettings={onOpenSettings}
             />
 
-            {/* Main Content Area */}
-            <main className="flex-1 flex flex-col h-full overflow-hidden relative">
+            {/* Main Content Area - Glass Panel Island */}
+            <main className="flex-1 flex flex-col h-[calc(100vh-1rem)] m-2 md:m-4 glass rounded-3xl overflow-hidden relative border border-white/20 dark:border-white/10 shadow-2xl">
                 {children}
             </main>
 
             {/* Mobile Bottom Navigation */}
-            <div className="md:hidden fixed bottom-0 w-full bg-white dark:bg-neutral-900 border-t border-stone-200 dark:border-neutral-800 px-6 py-4 flex justify-around items-center z-30 pb-safe">
+            <div className="md:hidden fixed bottom-0 w-full glass border-t-0 px-6 py-4 flex justify-around items-center z-30 pb-safe">
                 <button
                     onClick={() => {
                         if (onDashboardTabChange) onDashboardTabChange('overview');
