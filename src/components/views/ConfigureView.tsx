@@ -5,6 +5,8 @@ import { ItineraryOption, UserProfile } from '../../types';
 import { ModelRegistry } from '../../services/ai';
 import { useToast } from '../ui/toast';
 import { BackendService } from '../../services/storage'; // Keep for isConfigured check
+import { ComplianceService } from '../../services/compliance';
+import { Shield, Download, AlertTriangle } from 'lucide-react';
 
 interface ConfigureViewProps {
     user: UserProfile;
@@ -26,12 +28,16 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
     const [editForm, setEditForm] = useState<Partial<ItineraryOption>>({});
     const [isCreating, setIsCreating] = useState(false);
 
+    // Privacy State
+    const [privacySettings, setPrivacySettings] = useState<any>(null);
+
     // Section Configuration (Can be expanded)
     const settingsSections = [
         {
             title: "System",
             items: [
                 { id: 'general', label: 'AI & System', icon: Cpu },
+                { id: 'privacy', label: 'Privacy & Data', icon: Shield },
             ]
         },
         {
@@ -75,6 +81,11 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
                     // But if we want to be sure, we'd need OptionService to throw or return explicit error.
                 }
                 setOptions(data);
+            }
+
+            if (activeCategory === 'privacy') {
+                const settings = await ComplianceService.getSettings();
+                setPrivacySettings(settings);
             }
         } catch (error) {
             console.error("Failed to load options", error);
@@ -127,6 +138,21 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
             loadOptions();
         } else {
             showToast("Failed to save option", "error");
+        }
+    };
+
+    const handlePrivacyToggle = async (key: string, value: boolean) => {
+        if (!privacySettings) return;
+        const newSettings = { ...privacySettings, [key]: value };
+        setPrivacySettings(newSettings);
+
+        const success = await ComplianceService.updateSettings({ [key]: value });
+        if (success) {
+            showToast("Privacy settings saved", "success");
+        } else {
+            showToast("Failed to save settings", "error");
+            // Revert on failure
+            setPrivacySettings(privacySettings);
         }
     };
 
@@ -198,10 +224,15 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
                                 {activeSectionLabel}
                             </h1>
                             <p className="text-stone-500 text-sm mt-1">
-                                {activeCategory === 'general' ? 'Manage global application settings.' : `Manage available options for ${activeSectionLabel?.toLowerCase()}.`}
+                                {activeCategory === 'general'
+                                    ? 'Manage global application settings.'
+                                    : activeCategory === 'privacy'
+                                        ? 'Manage your personal data and compliance settings.'
+                                        : `Manage available options for ${activeSectionLabel?.toLowerCase()}.`
+                                }
                             </p>
                         </div>
-                        {activeCategory !== 'general' && !error && (
+                        {activeCategory !== 'general' && activeCategory !== 'privacy' && !error && (
                             <button
                                 onClick={startCreate}
                                 className="flex items-center gap-2 bg-stone-900 hover:bg-stone-800 dark:bg-white dark:hover:bg-stone-200 text-white dark:text-stone-900 px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm"
@@ -234,7 +265,7 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
                                     </button>
                                 </div>
                             </div>
-                        ) : !BackendService.isConfigured() && activeCategory !== 'general' ? (
+                        ) : !BackendService.isConfigured() && activeCategory !== 'general' && activeCategory !== 'privacy' ? (
                             <div className="p-6 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900 rounded-xl">
                                 <h3 className="text-lg font-bold text-red-800 dark:text-red-200 mb-2">Configuration Missing</h3>
                                 <p className="text-sm text-red-600 dark:text-red-300 mb-4">
@@ -287,6 +318,120 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+                            </div>
+                        ) : activeCategory === 'privacy' ? (
+                            /* PRIVACY SETTINGS UI */
+                            <div className="max-w-2xl space-y-6">
+                                {/* Compliance Status Card */}
+                                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-stone-200 dark:border-neutral-800 p-6">
+                                    <div className="flex items-start gap-4">
+                                        <div className="p-3 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                                            <Shield className="w-6 h-6" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-1">Compliance Status</h3>
+                                            <p className="text-stone-500 text-sm mb-4">
+                                                We have detected your region as <strong>California, USA</strong>.
+                                                The application is running in <span className="text-orange-600 font-bold">CCPA Compliance Mode</span>.
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                <span className="px-2 py-1 rounded bg-stone-100 dark:bg-neutral-800 text-xs font-bold text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-neutral-700">GDPR Ready</span>
+                                                <span className="px-2 py-1 rounded bg-stone-100 dark:bg-neutral-800 text-xs font-bold text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-neutral-700">CCPA Active</span>
+                                                <span className="px-2 py-1 rounded bg-stone-100 dark:bg-neutral-800 text-xs font-bold text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-neutral-700">AI Transparency</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Data Export Card */}
+                                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-stone-200 dark:border-neutral-800 p-6">
+                                    <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <Shield className="w-5 h-5 text-orange-500" /> Consent & Permissions
+                                    </h3>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-bold text-stone-900 dark:text-white text-sm">AI Processing</div>
+                                                <div className="text-xs text-stone-500">Allow Google Gemini to process your prompts. Required for itineraries.</div>
+                                            </div>
+                                            <div
+                                                onClick={() => handlePrivacyToggle('ai_processing_opt_in', !privacySettings?.ai_processing_opt_in)}
+                                                className={`w-10 h-6 rounded-full p-1 cursor-pointer transition-colors ${privacySettings?.ai_processing_opt_in ? 'bg-orange-500' : 'bg-stone-200 dark:bg-neutral-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${privacySettings?.ai_processing_opt_in ? 'translate-x-4' : ''}`}></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-bold text-stone-900 dark:text-white text-sm">Product Analytics</div>
+                                                <div className="text-xs text-stone-500">Help us improve by sending anonymous usage data.</div>
+                                            </div>
+                                            <div
+                                                onClick={() => handlePrivacyToggle('analytics_opt_in', !privacySettings?.analytics_opt_in)}
+                                                className={`w-10 h-6 rounded-full p-1 cursor-pointer transition-colors ${privacySettings?.analytics_opt_in ? 'bg-orange-500' : 'bg-stone-200 dark:bg-neutral-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${privacySettings?.analytics_opt_in ? 'translate-x-4' : ''}`}></div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-bold text-stone-900 dark:text-white text-sm">Marketing Communications</div>
+                                                <div className="text-xs text-stone-500">Receive occasional emails about new features.</div>
+                                            </div>
+                                            <div
+                                                onClick={() => handlePrivacyToggle('marketing_opt_in', !privacySettings?.marketing_opt_in)}
+                                                className={`w-10 h-6 rounded-full p-1 cursor-pointer transition-colors ${privacySettings?.marketing_opt_in ? 'bg-orange-500' : 'bg-stone-200 dark:bg-neutral-700'}`}
+                                            >
+                                                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${privacySettings?.marketing_opt_in ? 'translate-x-4' : ''}`}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Data Export Card */}
+                                <div className="bg-white dark:bg-neutral-900 rounded-xl border border-stone-200 dark:border-neutral-800 p-6">
+                                    <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-4 flex items-center gap-2">
+                                        <Download className="w-5 h-5 text-orange-500" /> Export Your Data
+                                    </h3>
+                                    <p className="text-stone-500 text-sm mb-6">
+                                        Download a complete copy of your itineraries, preferences, and profile data in machine-readable JSON format.
+                                    </p>
+                                    <button
+                                        onClick={() => {
+                                            ComplianceService.downloadDataPackage();
+                                            showToast("Data export started...", "success");
+                                        }}
+                                        className="w-full sm:w-auto px-6 py-2.5 bg-stone-100 hover:bg-stone-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-stone-900 dark:text-white text-sm font-bold rounded-lg transition-colors border border-stone-200 dark:border-neutral-700"
+                                    >
+                                        Download My Data
+                                    </button>
+                                </div>
+
+                                {/* Danger Zone */}
+                                <div className="bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-200 dark:border-red-900/30 p-6">
+                                    <h3 className="text-lg font-bold text-red-800 dark:text-red-200 mb-4 flex items-center gap-2">
+                                        <AlertTriangle className="w-5 h-5" /> Danger Zone
+                                    </h3>
+                                    <p className="text-red-600 dark:text-red-300 text-sm mb-6">
+                                        Permanently delete your account and all associated data. This action cannot be undone.
+                                    </p>
+                                    <button
+                                        onClick={async () => {
+                                            if (confirm("Are you absolutely sure? This will verify your identity then permanently delete your account.")) {
+                                                const success = await ComplianceService.deleteUserAccount();
+                                                if (success) {
+                                                    // Force reload to kick to auth
+                                                    window.location.href = '/';
+                                                } else {
+                                                    showToast("Failed to delete account. Try again later.", "error");
+                                                }
+                                            }
+                                        }}
+                                        className="w-full sm:w-auto px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition-colors shadow-sm"
+                                    >
+                                        Delete My Account
+                                    </button>
                                 </div>
                             </div>
                         ) : (

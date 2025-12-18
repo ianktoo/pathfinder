@@ -60,7 +60,7 @@ export const Dashboard = ({ user, savedItineraries, onCreateClick, onLogout, onO
             setLocalItineraries(updated);
 
             // Construct Share URL
-            const url = `${window.location.origin}?itinerary=${itinerary.id}`;
+            const url = `https://path-finder.dev?itinerary=${itinerary.id}`;
             navigator.clipboard.writeText(url).then(() => {
                 alert("Published & Link Copied to Clipboard!");
             }).catch(() => {
