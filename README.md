@@ -2,7 +2,11 @@
 
 ![Pathfinder Hero](public/pathfinder_hero.png)
 
+
 **Pathfinder** is an AI-powered itinerary planner that creates hyper-local, personalized day trips in seconds. It combines the power of Google Gemini with real local business data to act as your knowledgeable local friend.
+
+### 🌐 [Live Demo: path-finder.dev](https://path-finder.dev/)
+
 
 ## 🚀 Getting Started
 

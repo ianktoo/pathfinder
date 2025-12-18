@@ -71,6 +71,8 @@ We implemented a **LangChain-inspired pattern** for AI interactions, making it e
 ## Current Status & How to Run
 
 ⚠️ **Honest Update**: We're incredibly proud of what we've built in this short time, but we want to be transparent—some features are still in beta and you might encounter bugs. We are actively squashing them!
+ 
+### 🌐 **[Try it Live: path-finder.dev](https://path-finder.dev/)**
 
 If you'd like to experience the full potential of Pathfinder (including the generative AI features), the best way is to run it locally:
 
