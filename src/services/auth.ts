@@ -60,5 +60,16 @@ export const AuthService = {
       email: supabaseUser.email,
       name: supabaseUser.user_metadata?.full_name || supabaseUser.email?.split('@')[0] || 'Explorer',
     };
+  },
+
+  getProfile: async (userId: string) => {
+    const { data, error } = await supabase!
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (error) throw error;
+    return data as import('../types').UserProfile;
   }
 };

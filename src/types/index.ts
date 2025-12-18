@@ -5,6 +5,8 @@ export interface UserProfile {
   city: string;
   personality: 'Adventurous' | 'Chill' | 'Foodie' | 'Cultural' | 'Party';
   role?: 'user' | 'admin' | 'explorer';
+  id?: string;
+  created_at?: string;
 }
 
 export interface YelpData {

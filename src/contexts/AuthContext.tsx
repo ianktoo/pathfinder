@@ -31,14 +31,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             }
 
             const authProfile = AuthService.mapUserToProfile(sessionUser);
-            // Try to get extended profile
+
+            // Try to get extended profile from DB (Role, etc)
+            let dbProfile = {};
+            try {
+                if (isSupabaseConfigured()) {
+                    dbProfile = await AuthService.getProfile(sessionUser.id);
+                }
+            } catch (e) {
+                console.warn("Failed to fetch DB profile", e);
+            }
+
+            // Try to get extended profile from Local Storage (Preferences)
             console.log("Fetching local profile...");
             const localProfile = await BackendService.getUser(sessionUser);
             console.log("Local profile fetched.");
-            // Note: In a real app we might fetch from 'profiles' table via Supabase, 
-            // but BackendService handles the local/db mix for now.
 
-            const mergedUser = { ...authProfile, ...(localProfile || {}) } as UserProfile;
+            // DB profile takes precedence for Role, Local for ephemeral UI state if needed
+            const mergedUser = { ...authProfile, ...(localProfile || {}), ...dbProfile } as UserProfile;
 
             // Only update if actually changed to avoid render loops (simple check)
             setUser(mergedUser);

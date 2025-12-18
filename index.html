@@ -34,19 +34,34 @@
       theme: {
         extend: {
           colors: {
-            orange: {
-              50: '#fff7ed',
-              100: '#ffedd5',
-              200: '#fed7aa',
-              300: '#fdba74',
-              400: '#fb923c',
-              500: '#f97316',
-              600: '#ea580c',
-              700: '#c2410c',
-              800: '#9a3412',
-              900: '#7c2d12',
-              950: '#431407',
+            primary: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22',
             },
+            // Mapping 'orange' classes to the new primary to minimize refactoring needs immediately,
+            // though ideally we'd rename usage. keeping existing 'orange' map for compatibility but pointing to green
+            orange: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22',
+            }
           },
           animation: {
             'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -75,32 +90,47 @@
       font-family: 'Inter', sans-serif;
     }
 
+    .glass {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .dark .glass {
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     /* Custom scrollbar for aesthetic */
     ::-webkit-scrollbar {
       width: 8px;
     }
 
     ::-webkit-scrollbar-track {
-      background: #fafaf9;
+      background: #f0fdf4;
+      /* Green-50 */
     }
 
     body.dark ::-webkit-scrollbar-track {
-      background: #171717;
+      background: #022c22;
+      /* Green-950 */
     }
 
     ::-webkit-scrollbar-thumb {
-      background: #fb923c;
-      /* Orange-400 */
+      background: #34d399;
+      /* Green-400 */
       border-radius: 4px;
     }
 
     body.dark ::-webkit-scrollbar-thumb {
-      background: #ea580c;
-      /* Orange-600 */
+      background: #059669;
+      /* Green-600 */
     }
 
     ::-webkit-scrollbar-thumb:hover {
-      background: #c2410c;
+      background: #047857;
+      /* Green-700 */
     }
   </style>
 </head>

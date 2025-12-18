@@ -7,6 +7,8 @@ import { useToast } from '../ui/toast';
 import { BackendService } from '../../services/storage'; // Keep for isConfigured check
 import { ComplianceService } from '../../services/compliance';
 import { Shield, Download, AlertTriangle } from 'lucide-react';
+import { AdminService } from '../../services/admin';
+import { AuthorizationUtils } from '../../lib/authorization';
 
 interface ConfigureViewProps {
     user: UserProfile;
@@ -30,6 +32,7 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
 
     // Privacy State
     const [privacySettings, setPrivacySettings] = useState<any>(null);
+    const [users, setUsers] = useState<UserProfile[]>([]);
 
     // Section Configuration (Can be expanded)
     const settingsSections = [
@@ -38,6 +41,7 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
             items: [
                 { id: 'general', label: 'AI & System', icon: Cpu },
                 { id: 'privacy', label: 'Privacy & Data', icon: Shield },
+                ...(AuthorizationUtils.isAdmin(user) ? [{ id: 'users', label: 'User Management', icon: Users }] : [])
             ]
         },
         {
@@ -86,6 +90,9 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
             if (activeCategory === 'privacy') {
                 const settings = await ComplianceService.getSettings();
                 setPrivacySettings(settings);
+            } else if (activeCategory === 'users' && AuthorizationUtils.isAdmin(user)) {
+                const fetchedUsers = await AdminService.getUsers();
+                setUsers(fetchedUsers);
             }
         } catch (error) {
             console.error("Failed to load options", error);
@@ -165,6 +172,17 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
             loadOptions();
         } else {
             showToast("Failed to delete option", "error");
+        }
+    };
+
+    const handleRoleUpdate = async (userId: string, newRole: 'admin' | 'explorer') => {
+        try {
+            await AdminService.setUserRole(userId, newRole);
+            showToast(`Role updated to ${newRole}`, 'success');
+            loadOptions();
+        } catch (e) {
+            console.error(e);
+            showToast("Failed to update role", "error");
         }
     };
 
@@ -432,6 +450,44 @@ export const ConfigureView = ({ user, onBack }: ConfigureViewProps) => {
                                     >
                                         Delete My Account
                                     </button>
+                                </div>
+                            </div>
+                        ) : activeCategory === 'users' ? (
+                            /* USER MANAGEMENT UI */
+                            <div className="bg-white dark:bg-neutral-900 rounded-xl border border-stone-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+                                <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-stone-50/50 dark:bg-neutral-900 border-b border-stone-100 dark:border-neutral-800 text-[10px] font-black uppercase tracking-wider text-stone-400">
+                                    <div className="col-span-4">User</div>
+                                    <div className="col-span-4">Email</div>
+                                    <div className="col-span-2">Role</div>
+                                    <div className="col-span-2 text-right">Joined</div>
+                                </div>
+                                <div className="divide-y divide-stone-100 dark:divide-neutral-800">
+                                    {users.map((u) => (
+                                        <div key={u.email} className="px-6 py-4 grid grid-cols-12 gap-4 items-center hover:bg-stone-50 dark:hover:bg-neutral-800/50 transition-colors">
+                                            <div className="col-span-4">
+                                                <div className="font-bold text-sm text-stone-900 dark:text-white">{u.name || 'Unknown'}</div>
+                                            </div>
+                                            <div className="col-span-4">
+                                                <div className="text-xs font-mono text-stone-500">{u.email}</div>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <select
+                                                    value={u.role || 'explorer'}
+                                                    onChange={(e) => u.email && handleRoleUpdate(u.id!, e.target.value as 'admin' | 'explorer')}
+                                                    className="text-xs bg-stone-100 dark:bg-neutral-800 border-none rounded px-2 py-1 font-bold text-stone-700 dark:text-stone-300 cursor-pointer focus:ring-2 focus:ring-orange-500"
+                                                >
+                                                    <option value="explorer">Explorer</option>
+                                                    <option value="admin">Admin</option>
+                                                </select>
+                                            </div>
+                                            <div className="col-span-2 text-right">
+                                                <div className="text-xs text-stone-400">
+                                                    {/* @ts-ignore */}
+                                                    {u.created_at ? new Date(u.created_at).toLocaleDateString() : '-'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ) : (
