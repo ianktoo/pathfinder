@@ -17,7 +17,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <div className="flex gap-10 text-sm font-bold text-stone-500 dark:text-stone-400 uppercase tracking-widest">
                     <button onClick={() => onNavigate('about')} className="hover:text-orange-600 transition-colors">About</button>
                     <button onClick={() => onNavigate('privacy')} className="hover:text-orange-600 transition-colors">Privacy</button>
-                    <a href="#" className="hover:text-orange-600 transition-colors">Instagram</a>
+                    <a href="https://github.com/iankt/pathfinder" className="hover:text-orange-600 transition-colors">Github</a>
                 </div>
                 <p className="text-stone-400 text-xs font-bold">
                     © 2025 Pathfinder Inc. | Made for Humans
