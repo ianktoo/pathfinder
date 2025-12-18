@@ -10,6 +10,7 @@
   <meta name="description"
     content="Plan your perfect trip with AI-powered itineraries. Explore, customize, and share your adventures." />
   <meta name="theme-color" content="#f97316" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
@@ -46,10 +47,27 @@
               900: '#7c2d12',
               950: '#431407',
             },
+          },
+          animation: {
+            'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'gradient': 'gradient 8s ease infinite',
+          },
+          keyframes: {
+            gradient: {
+              '0%, 100%': {
+                'background-size': '200% 200%',
+                'background-position': 'left center'
+              },
+              '50%': {
+                'background-size': '200% 200%',
+                'background-position': 'right center'
+              },
+            },
           }
         }
       }
     }
+
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
   <style>
