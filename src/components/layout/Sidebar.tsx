@@ -54,7 +54,7 @@ export const Sidebar = ({ user, activeTab, onNavigate, onDashboardTabChange, onL
                 <nav className="space-y-2 flex-1">
                     <button
                         onClick={handleHomeClick}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'home' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'home' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
                     >
                         <Home className="w-5 h-5" /> Home
                     </button>
@@ -69,13 +69,13 @@ export const Sidebar = ({ user, activeTab, onNavigate, onDashboardTabChange, onL
                                 onNavigate('dashboard');
                             }
                         }}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'library' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'library' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
                     >
                         <Library className="w-5 h-5" /> My Library
                     </button>
                     <button
                         onClick={() => onNavigate('community')}
-                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'community' ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'community' ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400' : 'text-stone-500 hover:bg-stone-50 dark:text-stone-400 dark:hover:bg-neutral-800'}`}
                     >
                         <Users className="w-5 h-5" /> Community
                     </button>
